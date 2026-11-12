@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CuneiLab — Taller de lectura cuneiforme v0.2</title>
+  <meta name="description" content="Espacio de trabajo para estudiar fotografías, signos y transliteraciones cuneiformes. Funciona sin conexión.">
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="catalog.js"></script>
+  <script defer src="engine.js"></script>
+  <script defer src="app.js"></script>
+  <script defer src="corpus-ui.js"></script>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="identity"><span class="logo-sign">𒁾</span><div><div class="logo">CUNEI<span>LAB</span></div><div class="logo-sub">Taller de escritura mesopotámica</div></div></div>
+      <div class="top-actions">
+        <span class="offline-dot"><span></span> Funciona sin conexión</span>
+        <button class="btn btn-secondary compact" id="btnImport">Importar proyecto</button>
+        <button class="btn btn-accent compact" id="btnExport">Exportar proyecto ↓</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="intro">
+        <div><div class="eyebrow">EDICIÓN EXPERIMENTAL · v0.2</div><h1>Leer el pasado,<br><em>signo por signo.</em></h1><p>Explorá tablillas, anotá la escritura y analizá una transliteración en un solo espacio de trabajo.</p></div>
+        <div class="intro-aside"><div class="rune-pattern" aria-hidden="true">𒀭 𒈗 𒆠<br>𒂍 𒁾 𒀀</div><div class="metric"><strong id="signCount">1.118</strong><span>signos Unicode para explorar</span></div></div>
+      </section>
+
+      <div class="workflow"><span class="step active"><b>01</b> IMAGEN</span><span class="step"><b>02</b> SIGNOS</span><span class="step"><b>03</b> TRANSLITERACIÓN</span><span class="step"><b>04</b> ANÁLISIS</span><span class="step"><b>05</b> CORPUS</span></div>
+
+      <div class="workgrid">
+        <section class="panel photo-panel">
+          <div class="panel-heading"><div><span class="section-index">01 / FUENTE VISUAL</span><h2>La tablilla</h2></div><div class="pill">Anotación manual</div></div>
+          <div class="panel-contents">
+            <div class="image-toolbar"><label class="btn btn-secondary small file-label" for="imageInput">+ Cargar fotografía</label><button class="btn btn-ghost small" id="clearImage">Quitar imagen</button><span class="small-note">JPG · PNG · WebP</span></div>
+            <div class="image-stage" id="imageStage"><div class="image-empty" id="imageEmpty"><div class="empty-icon">𒁾</div><strong>Tu tablilla empieza acá</strong><p>Subí una foto para inspeccionar sus signos.<br>Después dibujá un recuadro para anotar una lectura.</p><label class="btn btn-accent" for="imageInput">Elegir imagen</label></div><canvas id="tabletCanvas" hidden aria-label="Fotografía de tablilla y regiones anotadas"></canvas></div>
+            <div class="image-settings"><label>Contraste <input id="contrast" type="range" min="50" max="250" value="110"><output id="contrastValue">110%</output></label><label>Brillo <input id="brightness" type="range" min="50" max="180" value="100"><output id="brightnessValue">100%</output></label><label><input id="grayscale" type="checkbox"> Escala de grises</label></div>
+            <div class="annotation-form" id="annotationForm" hidden><div class="annotation-heading"><strong>Nueva región marcada</strong><button class="icon-btn" id="cancelAnnotation" title="Cancelar">×</button></div><div class="annotation-fields"><label>Lectura propuesta<input id="annotationReading" placeholder="p. ej. lugal, AN, ?"></label><label>Nota / alternativa<input id="annotationNote" placeholder="p. ej. signo parcialmente erosionado"></label></div><button class="btn btn-accent small" id="saveAnnotation">Guardar región</button></div>
+            <div class="list-heading"><strong>Regiones anotadas</strong><span class="count" id="annotationCount">0</span></div><div class="annotation-list" id="annotationList"><p class="muted short">Todavía no hay anotaciones.</p></div>
+            <div class="information">El reconocimiento automático desde una fotografía <b>todavía no está conectado</b>. Las regiones y lecturas que dibujás acá son manuales y editables.</div>
+          </div>
+        </section>
+
+        <section class="panel transcription-panel">
+          <div class="panel-heading"><div><span class="section-index">02 / TEXTO</span><h2>Transliteración</h2></div><button class="btn btn-ghost small" id="sampleButton">Ver ejemplo ↗</button></div>
+          <div class="panel-contents">
+            <label class="field-label" for="projectTitle">Nombre del proyecto</label><input id="projectTitle" class="text-input" value="Nueva tablilla" maxlength="160">
+            <div class="language-row"><label class="field-label" for="languageSelect">Idioma de trabajo</label><select id="languageSelect"><option value="sux">Sumerio</option><option value="akk">Acadio · glosario muy limitado</option></select></div>
+            <div class="editor-header"><label class="field-label" for="transliteration">Texto transliterado (ATF simplificado)</label><span class="inline-help">Una línea por renglón</span></div>
+            <textarea class="translit-editor" id="transliteration" spellcheck="false" placeholder="1. lugal e2-gal&#10;2. dumu nin"></textarea>
+            <div class="editor-footer"><span>Se admiten números de línea, lecturas como e2, daños [x] y saltos.</span><button class="btn btn-secondary small" id="appendAnnotations">Pasar anotaciones al texto ↓</button></div>
+            <div class="action-row"><button class="btn btn-accent analyze-btn" id="analyzeButton">Analizar transliteración <span>→</span></button></div>
+            <div class="separator-label"><span>O EXPLORÁ SIGNOS ORIGINALES</span></div>
+            <label class="field-label" for="unicodeInput">Escritura cuneiforme Unicode</label>
+            <textarea id="unicodeInput" class="unicode-editor" spellcheck="false" placeholder="𒈗 𒂍 𒀭 𒆠"></textarea>
+            <div class="unicode-action"><span class="small-note">La propuesta usa únicamente lecturas frecuentes de unos pocos signos. Los no identificados quedan como [x].</span><button id="suggestReadings" class="btn btn-secondary small">Proponer lecturas →</button></div>
+            <div class="tiny">Podés pegar caracteres cuneiformes o agregarlos desde el catálogo. Los nombres de signos <b>no equivalen</b> a una lectura fonética segura.</div>
+          </div>
+        </section>
+      </div>
+
+      <div class="workgrid below-grid">
+        <section class="panel lexicon-panel">
+          <div class="panel-heading"><div><span class="section-index">03 / CONSULTA</span><h2>Catálogo de signos</h2></div><span class="pill">Unicode</span></div>
+          <div class="panel-contents"><div class="search-row"><input type="search" id="signSearch" placeholder="Buscar LUGAL, AN, KI, U+12217..." aria-label="Buscar en el catálogo"><button class="btn btn-secondary small" id="clearSearch">Limpiar</button></div><div id="signResults" class="sign-results"></div><div class="tiny">Selección para editar: agregá un signo al campo Unicode, luego elegí su lectura con apoyo de un diccionario especializado.</div></div>
+        </section>
+        <section class="panel analysis-panel" id="resultsPanel">
+          <div class="panel-heading"><div><span class="section-index">04 / INTERPRETACIÓN</span><h2>Análisis y glosas</h2></div><span class="pill good" id="analysisStatus">Preparado</span></div>
+          <div class="panel-contents"><div class="stats"><div><span>Unidades</span><strong id="statTokens">0</strong></div><div><span>Coincidencias</span><strong id="statKnown">0</strong></div><div><span>Sin resolver</span><strong id="statUnknown">0</strong></div></div>
+            <div class="result-intro" id="resultIntro">Pegá una transliteración y tocá <b>Analizar</b> para obtener glosas por palabra. No se inventan traducciones donde falta información.</div>
+            <div id="resultRows" class="result-rows"></div>
+            <div id="glyphSection" hidden><div class="list-heading"><strong>Signos digitales identificados</strong></div><div class="glyph-results" id="glyphResults"></div></div>
+            <div id="draftSection" hidden><div class="list-heading"><strong>Glosa literal · orden original</strong></div><pre id="draftOutput" class="draft-output"></pre><p class="small-note">Esto es un apoyo léxico, <b>no</b> una traducción gramatical ni una edición filológica.</p></div>
+            <div class="download-buttons"><button class="btn btn-secondary small" id="exportTxt">Exportar informe .txt</button><button class="btn btn-secondary small" id="exportAtf">Exportar .atf</button></div>
+          </div>
+        </section>
+      </div>
+
+      <section class="panel corpus-panel" id="corpusPanel" aria-label="Buscar tablillas reales en un corpus">
+        <div class="panel-heading"><div><span class="section-index">05 / FUENTES DOCUMENTADAS</span><h2>Concordancia con tablillas existentes</h2></div><span id="corpusStatus" class="pill">Comprobando corpus…</span></div>
+        <div class="panel-contents">
+          <p class="small-note">Buscá una secuencia de signos o una transliteración en el corpus <strong>SumTablets</strong>. Los resultados muestran inscripciones y lecturas ya documentadas por el proyecto de origen; <strong>no constituyen OCR ni una traducción automática al español</strong>.</p>
+          <div class="corpus-search">
+            <select id="corpusField" aria-label="Buscar por"><option value="transliteration">Transliteración</option><option value="glyphs">Signos cuneiformes</option></select>
+            <input id="corpusQuery" class="text-input" placeholder="Escribí lugal o pegá signos 𒀭𒈗" maxlength="1500" aria-label="Texto a buscar">
+            <button class="btn btn-accent" id="searchCorpus" type="button">Buscar</button>
+          </div>
+          <div class="corpus-quick"><button class="btn btn-secondary small" type="button" id="copyFromATF">Buscar mi transliteración</button><button class="btn btn-secondary small" type="button" id="copyFromUnicode">Buscar mis signos Unicode</button></div>
+          <div id="corpusResults" class="corpus-results" aria-live="polite"><p class="small-note">El índice se genera localmente a partir de un CSV de SumTablets. Para activar las búsquedas, seguí las instrucciones del README.</p></div>
+          <p class="tiny">Fuente: <a href="https://huggingface.co/datasets/colesimmons/SumTablets" target="_blank" rel="noopener">SumTablets</a>, licencia CC BY 4.0. Los identificadores, períodos y géneros provienen del corpus importado. Reservá los conjuntos <em>validation</em> y <em>test</em> para evaluación de modelos.</p>
+        </div>
+      </section>
+
+      <footer><div><b>CuneiLab</b> · Prototipo de estudio local · El proyecto permanece en tu dispositivo hasta que lo exportes.</div><div class="links"><a href="https://cdli.earth/" target="_blank" rel="noopener">CDLI</a><a href="https://oracc.museum.upenn.edu/epsd2/" target="_blank" rel="noopener">ePSD2</a><a href="https://github.com/ElectronicBabylonianLiterature/cuneiform-ocr" target="_blank" rel="noopener">eBL OCR</a></div></footer>
+    </main>
+  </div>
+  <input type="file" id="imageInput" accept="image/png,image/jpeg,image/webp" hidden>
+  <input type="file" id="projectFile" accept=".json,application/json" hidden>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
