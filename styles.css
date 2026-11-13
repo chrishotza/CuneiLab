@@ -25,3 +25,16 @@ footer{padding:32px 0 45px;display:flex;justify-content:space-between;gap:10px;c
 .corpus-kwic {font-size:12px;line-height:1.65;color:var(--text);margin-top:10px;overflow-wrap:anywhere}
 .corpus-kwic mark {background:#c39b57;color:#17130d;padding:2px;border-radius:3px}
 .cdli-link {display:inline-block;font-size:11px;margin-top:7px;color:#b8dcd3}
+
+/* v0.4 – review visual detections without claiming OCR/translation in browser */
+.vision-import{margin-top:16px;padding:13px 14px;background:#262a22;border:1px solid #515642;border-radius:9px}
+.vision-import .list-heading{margin:0 0 12px}
+.vision-toolbar,.vision-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.vision-toolbar label:not(.btn){font-size:11px;color:var(--muted);display:flex;align-items:center;gap:7px}
+.vision-toolbar input[type=range]{width:105px;accent-color:var(--gold)}
+.vision-toolbar output{color:var(--gold);min-width:30px}
+.vision-actions{margin:12px 0}
+.vision-results{max-height:270px;overflow:auto}
+.vision-detection{display:flex;align-items:center;gap:12px;border-top:1px solid #41483b;padding:9px 2px;font-size:11px}
+.vision-detection .meta{flex:1;min-width:0}.vision-detection strong{display:block;color:#e9cc9c;overflow-wrap:anywhere}.vision-detection small{display:block;color:var(--muted);margin-top:3px}.vision-detection button{white-space:nowrap}
+.vision-hint{font-size:11px;color:#c1c7b4;margin-top:8px}

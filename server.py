@@ -7,7 +7,7 @@ from urllib.parse import parse_qs, urlsplit
 from corpus import DEFAULT_DB, search, status, facets
 
 ROOT = Path(__file__).resolve().parent
-ALLOWED_ASSETS = {'/', '/index.html', '/app.js', '/engine.js', '/catalog.js', '/styles.css', '/corpus-ui.js'}
+ALLOWED_ASSETS = {'/', '/index.html', '/app.js', '/engine.js', '/catalog.js', '/styles.css', '/corpus-ui.js', '/vision.js'}
 
 
 def make_handler(db_path: Path = DEFAULT_DB):
@@ -60,7 +60,7 @@ def main():
     args = parser.parse_args()
     # Bind to loopback only: do not expose uploaded or researched material to the LAN.
     with ThreadingHTTPServer(('127.0.0.1', args.port), make_handler(args.db)) as httpd:
-        print(f'CuneiLab v0.3 en http://127.0.0.1:{httpd.server_port} (Ctrl+C para cerrar)', flush=True)
+        print(f'CuneiLab v0.4 en http://127.0.0.1:{httpd.server_port} (Ctrl+C para cerrar)', flush=True)
         httpd.serve_forever()
 
 if __name__ == '__main__':

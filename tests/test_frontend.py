@@ -25,6 +25,19 @@ class UiTests(unittest.TestCase):
         script = (ROOT/'corpus-ui.js').read_text(encoding='utf-8')
         used = set(re.findall(r"\$\('([\w-]+)'\)",script))
         self.assertTrue(used.issubset(ids.ids), used - ids.ids)
+    def test_vision_controls_and_script_loaded(self):
+        html = (ROOT/'index.html').read_text(encoding='utf-8')
+        ids=IdParser(); ids.feed(html)
+        expected={'predictionInput','visionThreshold','visionResults','visionStatus',
+                  'visionThresholdValue','acceptVisibleDetections','clearDetections'}
+        self.assertTrue(expected.issubset(ids.ids), expected - ids.ids)
+        self.assertIn('src="vision.js"', html)
+        app=(ROOT/'app.js').read_text(encoding='utf-8')
+        used=set(re.findall(r"\$\('([\w-]+)'\)",app))
+        self.assertTrue(used.issubset(ids.ids), used - ids.ids)
+        server=(ROOT/'server.py').read_text(encoding='utf-8')
+        self.assertIn("'/vision.js'",server)
+
     def test_corpus_ui_script_loaded(self):
         html = (ROOT/'index.html').read_text(encoding='utf-8')
         self.assertIn('src="corpus-ui.js"', html)

@@ -3,11 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CuneiLab — Taller de lectura cuneiforme v0.3</title>
+  <title>CuneiLab — Taller de lectura cuneiforme v0.4</title>
   <meta name="description" content="Espacio de trabajo para estudiar fotografías, signos y transliteraciones cuneiformes. Funciona sin conexión.">
   <link rel="stylesheet" href="styles.css">
   <script defer src="catalog.js"></script>
   <script defer src="engine.js"></script>
+  <script defer src="vision.js"></script>
   <script defer src="app.js"></script>
   <script defer src="corpus-ui.js"></script>
 </head>
@@ -24,7 +25,7 @@
 
     <main>
       <section class="intro">
-        <div><div class="eyebrow">EDICIÓN EXPERIMENTAL · v0.3</div><h1>Leer el pasado,<br><em>signo por signo.</em></h1><p>Explorá tablillas, anotá la escritura y analizá una transliteración en un solo espacio de trabajo.</p></div>
+        <div><div class="eyebrow">EDICIÓN EXPERIMENTAL · v0.4</div><h1>Leer el pasado,<br><em>signo por signo.</em></h1><p>Explorá tablillas, anotá la escritura y analizá una transliteración en un solo espacio de trabajo.</p></div>
         <div class="intro-aside"><div class="rune-pattern" aria-hidden="true">𒀭 𒈗 𒆠<br>𒂍 𒁾 𒀀</div><div class="metric"><strong id="signCount">1.118</strong><span>signos Unicode para explorar</span></div></div>
       </section>
 
@@ -37,9 +38,16 @@
             <div class="image-toolbar"><label class="btn btn-secondary small file-label" for="imageInput">+ Cargar fotografía</label><button class="btn btn-ghost small" id="clearImage">Quitar imagen</button><span class="small-note">JPG · PNG · WebP</span></div>
             <div class="image-stage" id="imageStage"><div class="image-empty" id="imageEmpty"><div class="empty-icon">𒁾</div><strong>Tu tablilla empieza acá</strong><p>Subí una foto para inspeccionar sus signos.<br>Después dibujá un recuadro para anotar una lectura.</p><label class="btn btn-accent" for="imageInput">Elegir imagen</label></div><canvas id="tabletCanvas" hidden aria-label="Fotografía de tablilla y regiones anotadas"></canvas></div>
             <div class="image-settings"><label>Contraste <input id="contrast" type="range" min="50" max="250" value="110"><output id="contrastValue">110%</output></label><label>Brillo <input id="brightness" type="range" min="50" max="180" value="100"><output id="brightnessValue">100%</output></label><label><input id="grayscale" type="checkbox"> Escala de grises</label></div>
+            <section class="vision-import" aria-label="Revisión de signos detectados por IA">
+              <div class="list-heading"><strong>Detecciones visuales · OCR experimental</strong><span class="pill" id="visionStatus">Sin detecciones</span></div>
+              <div class="vision-toolbar"><label for="predictionInput" class="btn btn-secondary small">Importar resultado OCR (.json)</label><label>Confianza mínima <input id="visionThreshold" type="range" min="0" max="100" value="35" step="5"><output id="visionThresholdValue">35%</output></label></div>
+              <p class="small-note">Acepta JSON CuneiLab o COCO de una imagen. Primero cargá la foto original correspondiente. Las cajas y clases <b>no son transliteraciones</b>: revisá las lecturas propuestas antes de incorporarlas.</p>
+              <div class="vision-actions"><button class="btn btn-secondary small" id="acceptVisibleDetections" type="button">Aceptar detecciones visibles como regiones sin lectura</button><button class="btn btn-ghost small" id="clearDetections" type="button">Quitar detecciones</button></div>
+              <div class="vision-results" id="visionResults" aria-live="polite"></div>
+            </section>
             <div class="annotation-form" id="annotationForm" hidden><div class="annotation-heading"><strong>Nueva región marcada</strong><button class="icon-btn" id="cancelAnnotation" title="Cancelar">×</button></div><div class="annotation-fields"><label>Lectura propuesta<input id="annotationReading" placeholder="p. ej. lugal, AN, ?"></label><label>Nota / alternativa<input id="annotationNote" placeholder="p. ej. signo parcialmente erosionado"></label></div><button class="btn btn-accent small" id="saveAnnotation">Guardar región</button></div>
             <div class="list-heading"><strong>Regiones anotadas</strong><span class="count" id="annotationCount">0</span></div><div class="annotation-list" id="annotationList"><p class="muted short">Todavía no hay anotaciones.</p></div>
-            <div class="information">El reconocimiento automático desde una fotografía <b>todavía no está conectado</b>. Las regiones y lecturas que dibujás acá son manuales y editables.</div>
+            <div class="information">La aplicación no incluye pesos de IA. Podés generar detecciones con el script opcional de eBL/MMDetection o importar anotaciones COCO; la revisión de cada signo es obligatoria antes de interpretar el texto.</div>
           </div>
         </section>
 
@@ -99,6 +107,7 @@
   </div>
   <input type="file" id="imageInput" accept="image/png,image/jpeg,image/webp" hidden>
   <input type="file" id="projectFile" accept=".json,application/json" hidden>
+  <input type="file" id="predictionInput" accept=".json,application/json" hidden>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 </body>
 </html>

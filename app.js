@@ -3,8 +3,9 @@
   'use strict';
   const E = window.CuneiEngine;
   const C = window.SIGN_CATALOG;
+  const V = window.CuneiVision;
   const $ = id => document.getElementById(id);
-  const state = { imageUrl:'', image:new Image(), annotations:[], draftRect:null, mouseStart:null, result:null, lastSearch:'', title:'', language:'sux', transliteration:'', glyphs:'', contrast:110, brightness:100, gray:false };
+  const state = { imageUrl:'', image:new Image(), imageFilename:'', predictions:[], visionSource:'', annotations:[], draftRect:null, mouseStart:null, result:null, lastSearch:'', title:'', language:'sux', transliteration:'', glyphs:'', contrast:110, brightness:100, gray:false };
   let toastTimer=null;
   const esc = value=>String(value ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   function toast(msg) { const t=$('toast');t.textContent=msg;t.classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('visible'),3000); }
@@ -14,7 +15,7 @@
   }
   function fileStem() { return ($('projectTitle').value || 'cuneilab').trim().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9_-]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,70)||'cuneilab'; }
   function collect() {
-    return {format:'cuneilab-project',version:1,createdAt:new Date().toISOString(),title:$('projectTitle').value,language:$('languageSelect').value,transliteration:$('transliteration').value,glyphs:$('unicodeInput').value,annotations:state.annotations,filters:{contrast:Number($('contrast').value),brightness:Number($('brightness').value),grayscale:$('grayscale').checked},image:state.imageUrl||null};
+    return {format:'cuneilab-project',version:1,createdAt:new Date().toISOString(),title:$('projectTitle').value,language:$('languageSelect').value,transliteration:$('transliteration').value,glyphs:$('unicodeInput').value,annotations:state.annotations,vision:{source:state.visionSource,detections:state.predictions,image:{width:state.image.naturalWidth||0,height:state.image.naturalHeight||0}},filters:{contrast:Number($('contrast').value),brightness:Number($('brightness').value),grayscale:$('grayscale').checked},image:state.imageUrl||null};
   }
   function persist() { try { const v=collect(); delete v.image;localStorage.setItem('cuneilab-v1',JSON.stringify(v)); }catch(e){ /* persistencia opcional */ } }
   function restore() { try { const d=JSON.parse(localStorage.getItem('cuneilab-v1')||'null'); if(d?.format==='cuneilab-project') applyProject(d,false); }catch(e){} }
@@ -26,26 +27,31 @@
     $('transliteration').value=String(d.transliteration||'').slice(0,250000);
     $('unicodeInput').value=String(d.glyphs||'').slice(0,250000);
     const validRect=r=>r && [r.x,r.y,r.w,r.h].every(n=>typeof n==='number' && Number.isFinite(n) && n>=0 && n<=1);
+    state.predictions=[];state.visionSource='';
     state.annotations=Array.isArray(d.annotations)?d.annotations.filter(validRect).slice(0,1000).map(r=>({x:r.x,y:r.y,w:r.w,h:r.h,reading:String(r.reading||'').slice(0,100),note:String(r.note||'').slice(0,500)})):[];
     $('contrast').value=Math.max(50,Math.min(250,Number(d.filters?.contrast)||110));
     $('brightness').value=Math.max(50,Math.min(180,Number(d.filters?.brightness)||100));
     $('grayscale').checked=!!d.filters?.grayscale;
     updateFilterLabels();renderAnnotations();
-    if(d.image) loadImageUrl(d.image); else clearPhoto(false);
+    if(d.image) loadImageUrl(d.image, () => {
+      try { if(d.vision?.detections?.length){const v=V.canonical({format:'cuneilab-detections',version:1,source:d.vision.source||'proyecto',image:d.vision.image,detections:d.vision.detections});V.matchSize(v,state.image.naturalWidth,state.image.naturalHeight);state.predictions=v.detections;state.visionSource=v.source;} } catch(err){toast('Las predicciones guardadas no coinciden con la fotografía.');}
+      renderDetections();
+    }); else clearPhoto(false);
+    renderDetections();
     analyze();persist();if(showMessage) toast('Proyecto importado.');
   }
   function clearPhoto(save=true) {
-    state.imageUrl='';state.image=new Image();state.draftRect=null;
+    state.imageUrl='';state.image=new Image();state.draftRect=null;state.predictions=[];state.visionSource='';renderDetections();
     $('imageEmpty').hidden=false;$('tabletCanvas').hidden=true;$('annotationForm').hidden=true;
     if(save)persist();
   }
-  function loadImageUrl(src) {
+  function loadImageUrl(src, done) {
     const img=new Image();
     img.onload=()=>{
       if(img.naturalWidth<1 || img.naturalHeight<1){toast('Imagen vacía.');return;}
       state.image=img;state.imageUrl=src;const cvs=$('tabletCanvas');const scale=Math.min(1,1600/Math.max(img.naturalWidth,img.naturalHeight));
       cvs.width=Math.max(1,Math.round(img.naturalWidth*scale));cvs.height=Math.max(1,Math.round(img.naturalHeight*scale));
-      $('imageEmpty').hidden=true;cvs.hidden=false;renderImage();persist();
+      $('imageEmpty').hidden=true;cvs.hidden=false;renderImage();if(done)done();persist();
     };
     img.onerror=()=>toast('No se pudo abrir la imagen.');img.src=src;
   }
@@ -56,6 +62,12 @@
     ctx.clearRect(0,0,w,h);
     ctx.filter=`contrast(${$('contrast').value}%) brightness(${$('brightness').value}%) ${$('grayscale').checked?'grayscale(1)':''}`;
     ctx.drawImage(state.image,0,0,w,h);ctx.filter='none';
+    const threshold=Number($('visionThreshold').value)/100;
+    state.predictions.filter(p=>p.confidence>=threshold).forEach(p=>{
+      const [px,py,pw,ph]=p.bbox, sx=w/state.image.naturalWidth, sy=h/state.image.naturalHeight;
+      ctx.strokeStyle='#dfa962';ctx.lineWidth=2;ctx.fillStyle='rgba(239,167,92,0.12)';
+      ctx.fillRect(px*sx,py*sy,pw*sx,ph*sy);ctx.strokeRect(px*sx,py*sy,pw*sx,ph*sy);
+    });
     const boxes=state.annotations.concat(state.draftRect?[{...state.draftRect,reading:'Nueva'}]:[]);
     boxes.forEach((r,i)=>{
       ctx.lineWidth=Math.max(2,Math.floor(w/600)*2);ctx.strokeStyle=i===state.annotations.length?'#e4c18a':'#a4d0a1';
@@ -72,6 +84,26 @@
     $('annotationCount').textContent=state.annotations.length;
     $('annotationList').innerHTML=state.annotations.length?state.annotations.map((r,i)=>`<div class="annotation"><div class="num">${i+1}</div><div class="details"><strong>${esc(r.reading||'Sin lectura')}</strong><span>${esc(r.note||'Sin notas')}</span></div><button type="button" data-remove="${i}" title="Quitar región">Eliminar</button></div>`).join(''):'<p class="muted short">Todavía no hay anotaciones.</p>';
     renderImage();
+  }
+  function renderDetections() {
+    const threshold=Number($('visionThreshold').value)/100;
+    $('visionThresholdValue').textContent=Math.round(threshold*100)+'%';
+    const ordered=V.readingOrder(state.predictions);
+    const visible=ordered.filter(item=>state.predictions[item.index].confidence>=threshold);
+    $('visionStatus').textContent=state.predictions.length?`${visible.length} / ${state.predictions.length} signos`:'Sin detecciones';
+    $('visionResults').innerHTML=visible.length?visible.slice(0,300).map(item=>{
+      const d=state.predictions[item.index];
+      return `<div class="vision-detection"><div class="meta"><strong>${esc(d.label)} · ${Math.round(d.confidence*100)}%</strong><small>Línea visual ${item.line} · ${d.reading?`lectura sugerida: ${esc(d.reading)}`:'sin lectura fonética'}</small></div><button class="btn btn-secondary small" type="button" data-accept-detection="${item.index}">Revisar</button></div>`;
+    }).join('')+(visible.length>300?'<p class="vision-hint">Se muestran las primeras 300; podés cambiar el umbral.</p>':''):'<p class="vision-hint">Sin signos detectados. Cargá un JSON de un modelo real para ver los recuadros.</p>';
+    renderImage();
+  }
+  function acceptDetection(index) {
+    if(!state.imageUrl||!state.predictions[index])return;
+    const d=state.predictions[index];
+    const a=V.toAnnotation(d,state.image.naturalWidth,state.image.naturalHeight);
+    state.annotations.push(a);state.predictions.splice(index,1);
+    renderAnnotations();renderDetections();persist();
+    toast('Región incorporada como lectura ?. Revisala antes de analizar.');
   }
   function renderCatalog(query='') {
     const q=query.trim().toUpperCase();
@@ -119,7 +151,7 @@
     const file=ev.target.files?.[0];ev.target.value='';if(!file)return;
     if(!['image/jpeg','image/png','image/webp'].includes(file.type))return toast('Usá JPG, PNG o WebP.');
     if(file.size>12*1024*1024)return toast('La fotografía debe ocupar como máximo 12 MB.');
-    const reader=new FileReader();reader.onload=()=>{state.annotations=[];loadImageUrl(reader.result);renderAnnotations();};reader.onerror=()=>toast('No se pudo leer la fotografía.');reader.readAsDataURL(file);
+    const reader=new FileReader();reader.onload=()=>{state.annotations=[];state.predictions=[];state.visionSource='';state.imageFilename=file.name;loadImageUrl(reader.result,renderDetections);renderAnnotations();};reader.onerror=()=>toast('No se pudo leer la fotografía.');reader.readAsDataURL(file);
   });
   $('clearImage').addEventListener('click',()=>{clearPhoto();state.annotations=[];renderAnnotations();toast('Imagen eliminada del proyecto actual.');});
   ['contrast','brightness','grayscale'].forEach(id=>$(id).addEventListener('input',()=>{updateFilterLabels();renderImage();persist();}));
@@ -137,6 +169,30 @@
     state.draftRect=null;$('annotationForm').hidden=true;renderAnnotations();persist();toast('Región guardada.');
   });
   $('annotationList').addEventListener('click',ev=>{const b=ev.target.closest('[data-remove]');if(!b)return;state.annotations.splice(Number(b.dataset.remove),1);renderAnnotations();persist();});
+  $('visionThreshold').addEventListener('input',renderDetections);
+  $('predictionInput').addEventListener('change',ev=>{
+    const file=ev.target.files?.[0];ev.target.value='';if(!file)return;
+    if(!state.imageUrl||!state.image.naturalWidth)return toast('Primero cargá la fotografía correspondiente.');
+    if(file.size>2*1024*1024)return toast('Archivo de detecciones demasiado grande (máx. 2 MB).');
+    const reader=new FileReader();reader.onload=()=>{
+      try {const data=V.matchSize(V.canonical(JSON.parse(reader.result),state.imageFilename),state.image.naturalWidth,state.image.naturalHeight);
+        state.predictions=data.detections;state.visionSource=data.source;renderDetections();persist();toast(`${data.detections.length} detecciones importadas para revisión.`);
+      } catch(err){toast('No se pudo importar OCR: '+err.message);}
+    };reader.onerror=()=>toast('Error al leer detecciones.');reader.readAsText(file);
+  });
+  $('visionResults').addEventListener('click',ev=>{
+    const button=ev.target.closest('[data-accept-detection]');if(button)acceptDetection(Number(button.dataset.acceptDetection));
+  });
+  $('acceptVisibleDetections').addEventListener('click',()=>{
+    if(!state.imageUrl)return toast('Primero cargá la fotografía.');
+    const threshold=Number($('visionThreshold').value)/100;
+    const indices=V.readingOrder(state.predictions).filter(i=>state.predictions[i.index].confidence>=threshold).map(i=>i.index);
+    if(!indices.length)return toast('No hay detecciones visibles.');
+    indices.forEach(i=>state.annotations.push(V.toAnnotation(state.predictions[i],state.image.naturalWidth,state.image.naturalHeight)));
+    const accepted=new Set(indices);state.predictions=state.predictions.filter((_,i)=>!accepted.has(i));
+    renderAnnotations();renderDetections();persist();toast(`${indices.length} regiones agregadas sin lectura confirmada.`);
+  });
+  $('clearDetections').addEventListener('click',()=>{state.predictions=[];state.visionSource='';renderDetections();persist();});
   $('signSearch').addEventListener('input',ev=>renderCatalog(ev.target.value));
   $('clearSearch').addEventListener('click',()=>{$('signSearch').value='';renderCatalog();});
   $('signResults').addEventListener('click',ev=>{const b=ev.target.closest('[data-glyph]');if(!b)return;const fld=$('unicodeInput');fld.value+=(fld.value&&!/\s$/.test(fld.value)?' ':'')+b.dataset.glyph;analyze();toast(`Signo ${C.find(s=>s.glyph===b.dataset.glyph)?.name||''} agregado.`);});
@@ -157,5 +213,5 @@
   $('projectFile').addEventListener('change',ev=>{const file=ev.target.files?.[0];ev.target.value='';if(!file)return;if(file.size>18*1024*1024)return toast('Proyecto demasiado grande.');const reader=new FileReader();reader.onload=()=>{try{applyProject(JSON.parse(reader.result));}catch(e){toast('No se pudo importar: '+e.message);}};reader.readAsText(file);});
   $('exportTxt').addEventListener('click',exportReport);
   $('exportAtf').addEventListener('click',()=>{download(fileStem()+'.atf',E.exportATF({title:$('projectTitle').value,language:$('languageSelect').value,transliteration:$('transliteration').value}));toast('ATF simplificado exportado.');});
-  renderCatalog();restore();analyze();
+  renderCatalog();restore();renderDetections();analyze();
 })();
