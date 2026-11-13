@@ -16,7 +16,7 @@
 1. Instalá [Python 3](https://www.python.org/downloads/) si no lo tenés. El servidor no requiere `pip install`.
 2. Descomprimí el proyecto y ejecutá `iniciar_cuneilab.bat`.
 3. En el navegador abrí `http://127.0.0.1:8765`. Sin Python, `index.html` sirve para el editor y la importación de detecciones; la búsqueda de corpus necesita servidor.
-4. Cargá una fotografía en **La tablilla**. Para superponer detecciones, usá **Importar resultado OCR (.json)** y elegí el JSON de la *misma fotografía* (mismas dimensiones originales). Revisá cada caja y su `label` antes de aceptar. La lectura importada, si no se proporciona explícitamente, queda en `?`.
+4. Cargá una fotografía en **La tablilla**. Para superponer detecciones, usá **Importar resultado OCR (.json)** y elegí el JSON de la *misma fotografía* (mismas dimensiones originales). Revisá cada caja y su `label` antes de aceptar. Toda lectura importada se conserva solo como sugerencia en las notas y queda marcada `?` hasta que la corrijas con **Editar** en el listado de regiones.
 
 El botón **Aceptar detecciones visibles como regiones** no asigna lecturas automáticamente. Las clases del modelo, como `AN` o `CLASS_2`, no equivalen siempre a una pronunciación o interpretación inequívoca. Cambiar el umbral de confianza únicamente filtra predicciones, no mejora el modelo.
 

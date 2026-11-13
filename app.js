@@ -82,7 +82,7 @@
   function rectFrom(a,b) {const x=Math.min(a.x,b.x),y=Math.min(a.y,b.y);return {x,y,w:Math.abs(a.x-b.x),h:Math.abs(a.y-b.y)};}
   function renderAnnotations() {
     $('annotationCount').textContent=state.annotations.length;
-    $('annotationList').innerHTML=state.annotations.length?state.annotations.map((r,i)=>`<div class="annotation"><div class="num">${i+1}</div><div class="details"><strong>${esc(r.reading||'Sin lectura')}</strong><span>${esc(r.note||'Sin notas')}</span></div><button type="button" data-remove="${i}" title="Quitar región">Eliminar</button></div>`).join(''):'<p class="muted short">Todavía no hay anotaciones.</p>';
+    $('annotationList').innerHTML=state.annotations.length?state.annotations.map((r,i)=>`<div class="annotation"><div class="num">${i+1}</div><div class="details"><strong>${esc(r.reading||'Sin lectura')}</strong><span>${esc(r.note||'Sin notas')}</span></div><button type="button" data-edit="${i}" title="Corregir lectura">Editar</button><button type="button" data-remove="${i}" title="Quitar región">Eliminar</button></div>`).join(''):'<p class="muted short">Todavía no hay anotaciones.</p>';
     renderImage();
   }
   function renderDetections() {
@@ -93,7 +93,7 @@
     $('visionStatus').textContent=state.predictions.length?`${visible.length} / ${state.predictions.length} signos`:'Sin detecciones';
     $('visionResults').innerHTML=visible.length?visible.slice(0,300).map(item=>{
       const d=state.predictions[item.index];
-      return `<div class="vision-detection"><div class="meta"><strong>${esc(d.label)} · ${Math.round(d.confidence*100)}%</strong><small>Línea visual ${item.line} · ${d.reading?`lectura sugerida: ${esc(d.reading)}`:'sin lectura fonética'}</small></div><button class="btn btn-secondary small" type="button" data-accept-detection="${item.index}">Revisar</button></div>`;
+      return `<div class="vision-detection"><div class="meta"><strong>${esc(d.label)} · ${Math.round(d.confidence*100)}%</strong><small>Línea visual ${item.line} · ${d.reading?`lectura sugerida: ${esc(d.reading)}`:'sin lectura fonética'}</small></div><button class="btn btn-secondary small" type="button" data-accept-detection="${item.index}">Agregar región</button></div>`;
     }).join('')+(visible.length>300?'<p class="vision-hint">Se muestran las primeras 300; podés cambiar el umbral.</p>':''):'<p class="vision-hint">Sin signos detectados. Cargá un JSON de un modelo real para ver los recuadros.</p>';
     renderImage();
   }
@@ -168,7 +168,16 @@
     state.annotations.push({...state.draftRect,reading:read.slice(0,100),note:$('annotationNote').value.trim().slice(0,500)});
     state.draftRect=null;$('annotationForm').hidden=true;renderAnnotations();persist();toast('Región guardada.');
   });
-  $('annotationList').addEventListener('click',ev=>{const b=ev.target.closest('[data-remove]');if(!b)return;state.annotations.splice(Number(b.dataset.remove),1);renderAnnotations();persist();});
+  $('annotationList').addEventListener('click',ev=>{
+    const edit=ev.target.closest('[data-edit]');
+    if(edit){const i=Number(edit.dataset.edit),a=state.annotations[i];if(!a)return;
+      const answer=window.prompt('Corregí la lectura a partir de la fotografía. Usá ? si es incierta:',a.reading);
+      if(answer===null)return;const reading=answer.trim().slice(0,100);
+      if(!reading)return toast('La lectura no puede estar vacía; usá ? si es desconocida.');
+      a.reading=reading;renderAnnotations();persist();toast('Lectura corregida manualmente.');return;}
+    const remove=ev.target.closest('[data-remove]');if(!remove)return;
+    state.annotations.splice(Number(remove.dataset.remove),1);renderAnnotations();persist();
+  });
   $('visionThreshold').addEventListener('input',renderDetections);
   $('predictionInput').addEventListener('change',ev=>{
     const file=ev.target.files?.[0];ev.target.value='';if(!file)return;

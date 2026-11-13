@@ -15,3 +15,5 @@ test('orden de lectura visual por filas y columnas',()=>{
   const ds=[{bbox:[60,40,8,10]},{bbox:[50,10,8,10]},{bbox:[10,10,8,10]},{bbox:[10,40,8,10]}];
   assert.deepEqual(V.readingOrder(ds).map(d=>d.index),[2,1,3,0]);
 });
+
+test('nunca promueve lectura sugerida a lectura verificada',()=>{const a=V.toAnnotation({bbox:[1,1,10,10],label:'AN',reading:'an',confidence:0.7},100,80);assert.equal(a.reading,'?');assert.match(a.note,/sugerencia no verificada: an/);});

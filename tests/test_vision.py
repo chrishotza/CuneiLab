@@ -34,6 +34,12 @@ class Tests(unittest.TestCase):
         self.assertEqual(out['detections'][0]['label'],'C')
         self.assertEqual(out['detections'][0]['bbox'],[10,20,20,30])
         self.assertEqual(out['detections'][0]['reading'],'')
+    def test_rejects_wrong_class_mapping(self):
+        class Tensor:
+            def __init__(self, value):self.value=value
+            def tolist(self):return self.value
+        ins=SimpleNamespace(bboxes=Tensor([[1,1,10,10]]),scores=Tensor([0.9]),labels=Tensor([3]))
+        with self.assertRaises(VisionFormatError):from_mmdet(ins,100,100,['AN'])
     def test_iou(self):
         self.assertEqual(iou([0,0,2,2],[0,0,2,2]),1)
         self.assertEqual(iou([0,0,2,2],[4,4,2,2]),0)

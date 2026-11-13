@@ -51,7 +51,7 @@
   function toAnnotation(det, imageWidth, imageHeight) {
     const [x,y,w,h]=det.bbox;
     return {x:x/imageWidth,y:y/imageHeight,w:w/imageWidth,h:h/imageHeight,
-      reading:det.reading.trim() || '?', note:`Detección IA sin lectura confirmada · clase ${det.label} · confianza ${(det.confidence*100).toFixed(1)}%`};
+      reading:'?', note:`Detección IA sin lectura confirmada · clase ${det.label} · confianza ${(det.confidence*100).toFixed(1)}%${det.reading?' · sugerencia no verificada: '+det.reading:''}`};
   }
   return Object.freeze({canonical,matchSize,readingOrder,toAnnotation});
 });

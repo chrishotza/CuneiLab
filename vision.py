@@ -116,7 +116,9 @@ def from_mmdet(pred_instances, width, height, classes, threshold=0.35, source='e
         index = int(class_index)
         if index < 0:
             raise VisionFormatError('Identificador de clase inválido')
-        label = classes[index] if index < len(classes) else f'CLASS_{index}'
+        if index >= len(classes):
+            raise VisionFormatError(f'Clase {index} no está definida en --classes / dataset_meta')
+        label = classes[index]
         x1, y1, x2, y2 = map(float, bbox)
         # Models occasionally return boxes marginally outside the image.
         x1, x2 = max(0, min(width, x1)), max(0, min(width, x2))
