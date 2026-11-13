@@ -34,7 +34,7 @@ def _photo_hashes(path: Path, split: str) -> dict[str, str]:
     Se exige hash real de 64 caracteres; nunca se usan nombres como sustitutos
     de la identidad del archivo. Un ID con hashes inconsistentes aborta.
     """
-    hashes: dict[str, str] = {}
+    hashes: dict[str, dict[str, str]] = {}
     with path.open('r', encoding='utf-8') as stream:
         for line_no, line in enumerate(stream, 1):
             if not line.strip():
@@ -46,15 +46,24 @@ def _photo_hashes(path: Path, split: str) -> dict[str, str]:
             if not isinstance(obj, dict):
                 raise ValueError(f'{path}:{line_no}: registro inválido')
             identifier = obj.get('id')
-            digest = obj.get('crop_sha256') or obj.get('image_sha256')
             if not isinstance(identifier, str) or not identifier.strip():
                 raise ValueError(f'{path}:{line_no}: id inválido')
-            if not isinstance(digest, str) or re.fullmatch(r'[a-fA-F0-9]{64}', digest) is None:
-                raise ValueError(f'{path}:{line_no}: SHA-256 de imagen inválido')
-            identifier, digest = identifier.strip().upper(), digest.lower()
-            if identifier in hashes and hashes[identifier] != digest:
-                raise ValueError(f'{path}:{line_no}: hashes contradictorios para {identifier}')
-            hashes[identifier] = digest
+            identifier = identifier.strip().upper()
+            digests = {}
+            for field in ('image_sha256', 'source_sha256', 'crop_sha256'):
+                value = obj.get(field)
+                if value is None:
+                    continue
+                if not isinstance(value, str) or re.fullmatch(r'[a-fA-F0-9]{64}', value) is None:
+                    raise ValueError(f'{path}:{line_no}: SHA-256 de imagen inválido en {field}')
+                digests[field] = value.lower()
+            if not digests:
+                raise ValueError(f'{path}:{line_no}: SHA-256 de imagen ausente')
+            prior = hashes.setdefault(identifier, {})
+            for field, digest in digests.items():
+                if field in prior and prior[field] != digest:
+                    raise ValueError(f'{path}:{line_no}: hashes contradictorios para {identifier}')
+                prior[field] = digest
     return hashes
 
 
@@ -82,7 +91,8 @@ def audit_splits(sources: dict[str, Path], *, image_audits: dict[str, Path] | No
     by_id: dict[str, set[str]] = defaultdict(set)
     by_exact: dict[str, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
     by_compact: dict[str, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
-    by_photo: dict[str, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
+    by_photo: dict[str, dict[str, dict[str, set[str]]]] = defaultdict(
+        lambda: defaultdict(lambda: defaultdict(set)))
     counts = {}
     repeated_within = {}
     photo_counts = {}
@@ -116,10 +126,15 @@ def audit_splits(sources: dict[str, Path], *, image_audits: dict[str, Path] | No
         if split in image_audits:
             records = _photo_hashes(Path(image_audits[split]), split)
             photo_counts[split] = len(records)
-            for identifier, digest in records.items():
+            for identifier, digests in records.items():
                 if identifier not in seen:
                     raise ValueError(f'{split}: la foto {identifier} no figura en el CSV del split')
-                by_photo[digest][split].add(identifier)
+                # Compare originals independently of crops: distinct crops of the
+                # same source photograph must not appear in separate splits.
+                # Never compare a crop hash against an original hash by accident.
+                for field, digest in digests.items():
+                    kind = 'original' if field in ('source_sha256', 'image_sha256') else 'crop'
+                    by_photo[kind][digest][split].add(identifier)
 
     exact_matches = _collisions(by_exact, label='sha256')
     exact_hashes = {row['sha256'] for row in exact_matches}
@@ -129,7 +144,11 @@ def audit_splits(sources: dict[str, Path], *, image_audits: dict[str, Path] | No
     ]
     # Un texto compacto puede ser idéntico a otro aunque sus hashes exactos
     # difieran: para no ocultarlo, siempre se presenta como revisión.
-    photo_matches = _collisions(by_photo, label='sha256')
+    photo_matches = [
+        {'image_kind': kind, **row}
+        for kind in sorted(by_photo)
+        for row in _collisions(by_photo[kind], label='sha256')
+    ]
     cross_ids = [{'id': key, 'splits': sorted(splits)}
                  for key, splits in sorted(by_id.items()) if len(splits) > 1]
     blocking = bool(cross_ids or exact_matches or photo_matches or any(repeated_within.values()))
@@ -147,6 +166,7 @@ def audit_splits(sources: dict[str, Path], *, image_audits: dict[str, Path] | No
             'Los hashes de imágenes proceden de archivos de auditoría aportados '
             'por el usuario, no de fotos verificadas aquí. Si los recortes son '
             'distintos, sus hashes pueden diferir aunque sean la misma tablilla. '
+            'Se comparan por separado los SHA-256 de originales y recortes. '
             'No se detectan variantes textuales, fotografías transformadas ni '
             'datos vistos por NabuOCR en su entrenamiento.'
         ),
