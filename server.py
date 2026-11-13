@@ -25,7 +25,29 @@ def make_handler(db_path: Path = DEFAULT_DB):
             self.end_headers()
             self.wfile.write(body)
 
+        def _valid_host(self) -> bool:
+            # A loopback bind does not stop hostile websites from targeting a
+            # local server via DNS rebinding. Require the exact local authority.
+            hosts = self.headers.get_all('Host', [])
+            valid = {f'127.0.0.1:{self.server.server_port}',
+                     f'localhost:{self.server.server_port}'}
+            return len(hosts) == 1 and hosts[0] in valid
+
+        def do_HEAD(self):
+            if not self._valid_host():
+                self.send_error(403, 'Local host required')
+                return
+            # SimpleHTTPRequestHandler's inherited HEAD ignores our GET
+            # allowlist; refuse requests for Python, SQLite and private files.
+            if urlsplit(self.path).path not in ALLOWED_ASSETS:
+                self.send_error(404, 'Ruta inexistente')
+                return
+            return super().do_HEAD()
+
         def do_GET(self):
+            if not self._valid_host():
+                self.send_error(403, 'Local host required')
+                return
             parsed = urlsplit(self.path)
             if parsed.path == '/api/status':
                 return self._json(200, status(db_path))
