@@ -34,8 +34,17 @@ def evaluate(gold, predicted):
         scored.append({'id':name,**metrics})
     edits=sum(r['edit_errors'] for r in scored)
     tokens=sum(r['reference_tokens'] for r in scored)
+    # Count absent predictions as complete deletions in the dataset-wide metric.
+    # Otherwise a model returning only its easiest image could appear perfect.
+    missing_tokens=sum(score(gold[name], '')['reference_tokens'] for name in missing)
+    all_tokens=tokens+missing_tokens
     return {'images_scored':len(scored),'missing_predictions':missing,'unmatched_predictions':extra,
             'micro_sign_error_rate':(edits/tokens if tokens else None),
+            'coverage_images':(len(scored)/len(gold) if gold else None),
+            'micro_sign_error_rate_including_missing':((edits+missing_tokens)/all_tokens if all_tokens else None),
+            'missing_reference_signs':missing_tokens,
+            'all_reference_signs':all_tokens,
+            'dataset_warning':'The including_missing metric treats each missing OCR output as deleting every reference sign; both error rates can exceed 1 with insertions.',
             'macro_sign_error_rate':(sum(r['sign_error_rate'] for r in scored)/len(scored) if scored else None),
             'total_edit_errors':edits,'reference_signs':tokens,
             'metric':'Levenshtein over Unicode signs and surface markers (not BPE/tokenizer TER)',

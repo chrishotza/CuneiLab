@@ -31,6 +31,19 @@ class TranscriptionTests(unittest.TestCase):
         self.assertEqual(report['images_scored'],2)
         self.assertAlmostEqual(report['micro_sign_error_rate'],1/3)
         self.assertEqual(report['unmatched_predictions'],['c'])
+    def test_missing_predictions_count_as_deleted_signs(self):
+        report=evaluate({'a':'𒀭𒆠','b':'𒀭𒈗'}, {'a':'𒀭𒆠'})
+        self.assertEqual(report['micro_sign_error_rate'],0)
+        self.assertEqual(report['coverage_images'],0.5)
+        self.assertEqual(report['missing_reference_signs'],2)
+        self.assertAlmostEqual(report['micro_sign_error_rate_including_missing'],0.5)
+
+    def test_all_predictions_missing_is_not_perfect(self):
+        report=evaluate({'a':'𒀭𒆠'}, {})
+        self.assertIsNone(report['micro_sign_error_rate'])
+        self.assertEqual(report['coverage_images'],0)
+        self.assertEqual(report['micro_sign_error_rate_including_missing'],1)
+
     def test_requires_explicit_remote_code(self):
         with self.assertRaises(ValueError): infer('any.jpg')
     def test_author_prompt(self):

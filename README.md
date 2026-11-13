@@ -198,3 +198,28 @@ Este repositorio no fija todavía una licencia de software. **El OCR detecta cla
 ### Atribución NabuOCR
 
 NabuOCR, Zack Williams (2025), licencia Apache-2.0; véase https://huggingface.co/boatbomber/NabuOCR. CuneiLab no redistribuye sus pesos.
+
+## v0.7 — Banco de prueba CuneiML con referencias de fotografías (sin pesos)
+
+**Objetivo práctico:** preparar parejas de fotografías y signos Unicode **documentados** para probar NabuOCR. [CuneiML v1.2](https://zenodo.org/records/10806319) (Chen, Agarwal, Berg-Kirkpatrick y Myerston) publica metadatos de 38.947 fotografías, coordenadas de recortes, transliteraciones y signos Unicode. **Las fotos no forman parte del JSON de Zenodo** y deben obtenerse por separado desde fuentes autorizadas y respetando sus derechos. El artículo señala condiciones **CC BY-NC 4.0** para los datos; el código de su repositorio tiene su propia licencia. No se empaquetan los datos ni las fotos en CuneiLab.
+
+1. Descargá manualmente `CuneiMLv1.2.json` desde [Zenodo](https://zenodo.org/records/10806319) a `data/cuneiml/CuneiMLv1.2.json` (unos 205 MB). Si querés comprobar la integridad publicada, usá `--verify-md5`; checksum MD5 upstream `fb11e8d06d9f03030f4b19def7621034`.
+2. Guardá fotografías que tengas derecho de usar en `data/cuneiml/photos/` con nombres de tipo `P131837.jpg` (también se admiten PNG y WebP). Se trabaja **offline**, sin hacer scraping o descargas automáticas de imágenes.
+3. Prepará un conjunto exploratorio y comprobá el manifiesto:
+
+```powershell
+py -3 scripts/prepare_cuneiml.py --metadata data/cuneiml/CuneiMLv1.2.json --photos data/cuneiml/photos --output-dir data/cuneiml/benchmark-test --split test --max-tablets 50 --verify-md5
+py -3 scripts/batch_nabu.py --manifest data/cuneiml/benchmark-test/manifest.jsonl --check
+```
+
+El preparador genera `gold.jsonl`, `manifest.jsonl`, `audit.jsonl` (IDs y SHA-256 de cada fotografía) y `dataset.json`. Copia únicamente las fotografías locales seleccionadas a la salida para reproducibilidad. **Se rechazan las líneas sin Unicode completo, marcas de daños como `<D>` y caras desconocidas**; nunca se sustituyen por glifos inventados.
+
+Luego, cuando estén instalados los pesos de NabuOCR, ejecutá el lote según la sección v0.6 y evaluá:
+
+```powershell
+py -3 scripts/evaluate_nabu.py --gold data/cuneiml/benchmark-test/gold.jsonl --predicted data/ocr/batch/predictions.jsonl --output data/ocr/batch/evaluation.json
+```
+
+**Precaución científica esencial:** el hash de split de CuneiLab es consistente por identificador de tablilla, pero **NO acredita independencia respecto al entrenamiento de NabuOCR**, que también usó imágenes de CDLI. Los números deben titularse «exploratorios» hasta contrastar IDs de entrenamiento del modelo. Podés utilizar `--exclude-ids ruta/a/ids_entrenamiento.txt` para excluir IDs conocidos, siempre que esa lista sea fiable. Además, la combinación de caras/líneas debe revisarse manualmente para confirmar que corresponda con la vista fotografiada.
+
+**Métricas sin ocultar fallas:** `evaluate_nabu.py` ahora distingue el error por signos **solo entre OCR completados** (`micro_sign_error_rate`) de la tasa que **cuenta los documentos sin predicción como todos sus signos eliminados** (`micro_sign_error_rate_including_missing`). También registra `coverage_images`. No equivale al TER del tokenizer del autor ni evalúa traducciones a español. No hay ninguna inferencia real de fotografías ejecutada en CI: las pruebas usan fixtures sintéticos.
