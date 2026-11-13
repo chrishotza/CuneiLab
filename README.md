@@ -1,4 +1,4 @@
-# CuneiLab 0.2 — estación local para estudiar tablillas cuneiformes
+# CuneiLab 0.3 — estación local para estudiar tablillas cuneiformes
 
 **Estado:** prototipo funcional, no un traductor automático integral. Incluye la interfaz de v0.1 y un módulo nuevo de consulta de corpus real (SumTablets).
 
@@ -8,6 +8,8 @@
 - Catálogo de 1.118 caracteres cuneiformes Unicode, con lecturas orientativas para una selección limitada.
 - Glosario introductorio para analizar transliteraciones sumerias y algunas acadias (no traduce la sintaxis).
 - **Nuevo:** importación en SQLite de CSV oficiales del corpus [SumTablets](https://huggingface.co/datasets/colesimmons/SumTablets), búsqueda por **secuencias Unicode** o **transliteración**, lista de coincidencias exactas / de prefijo / parciales con identificador, época y género.
+- **v0.3:** filtros por período y género, contexto KWIC de coincidencias, búsqueda por ID P/Q y enlaces de P-numbers a fichas CDLI.
+- **v0.3:** descarga opcional del CSV de entrenamiento verificada por SHA-256, sin descargar datos de evaluación.
 - **Nuevo:** sugerir usar como referencia la transliteración ya documentada de una coincidencia de corpus y someterla al análisis léxico (requiere revisión humana).
 - Servidor HTTP de uso local, con biblioteca estándar de Python 3 (sin librerías externas, cuenta en nube ni claves de IA).
 
@@ -26,9 +28,9 @@
 
 El corpus se descarga desde la publicación original, para conservar procedencia y evitar incluir archivos enormes en el repositorio GitHub:
 
-1. Abrí [SumTablets → Files](https://huggingface.co/datasets/colesimmons/SumTablets/tree/main) y descargá `train.csv` (aprox. 106 MB).
-2. Guardá ese CSV en el directorio `data/` dentro del proyecto.
-3. Desde una terminal abierta en la carpeta del proyecto ejecutá:
+1. Ejecutá `py -3 scripts/download_corpus.py --import` para descargar, verificar SHA-256 e importar automáticamente `train.csv` (aprox. 106 MB). También podés ejecutar `preparar_corpus.bat` en Windows. Alternativamente, descargá `train.csv` desde [SumTablets → Files](https://huggingface.co/datasets/colesimmons/SumTablets/tree/main).
+2. Solo si descargaste el archivo manualmente: guardá `train.csv` en el directorio `data/`.
+3. Solo si descargaste manualmente el CSV, desde una terminal en la carpeta del proyecto ejecutá:
 
    ```powershell
    py -3 scripts/import_corpus.py data/train.csv
@@ -76,7 +78,7 @@ CuneiLab/
 
 ## 5. Hoja de ruta con criterios verificables
 
-- **v0.3 — Corpus:** búsquedas por palabras en contexto, soporte de referencias CDLI/Oracc, mapeos de signos con respaldo de fuente y edición de variantes de lectura.
+- **v0.3 — Corpus:** búsqueda por ID P/Q, filtros de período y género, enlaces CDLI para artefactos P, resaltado del contexto y descargador con verificación SHA-256. **Implementado.**
 - **v0.4 — Modelos:** primer detector visual eBL ejecutable en un servicio opcional. Benchmark por imagen y por signo (datasets separados por época); sin llamadas externas opacas.
 - **v0.5 — Transliteración:** modelo que vaya de imágenes a signos y, separadamente, de glifos digitales a lecturas. Registrar top-k, confianza y fuente.
 - **v0.6 — Traducción:** traducción lingüística sumerio/acadio → español basada en corpus bilingüe y revisión profesional, con alineación de palabras e incertidumbre.
@@ -89,3 +91,11 @@ CuneiLab/
 - **eBL:** [cuneiform-ocr](https://github.com/ElectronicBabylonianLiterature/cuneiform-ocr).
 
 Este repositorio no tiene licencia de software seleccionada: elegí la apropiada antes de publicarlo. Respeta las licencias, condiciones y atribuciones de los corpus y modelos que se incorporen.
+
+## Alcance y seguridad de la versión 0.3
+
+- Los vínculos CDLI usan `https://cdli.earth/artifacts/123456` para un ID `P123456`. Los identificadores compuestos `Q` no se presentan como artefactos individuales.
+- La vista de contexto KWIC resalta una coincidencia textual, no una traducción ni una alineación lingüística.
+- El descargador verifica un hash SHA-256 publicado por SumTablets para su `train.csv` de referencia. Si el archivo cambia, se detiene en vez de aceptar material no verificado. No se descargan ni indexan los conjuntos de evaluación.
+- La base SQLite no se sube a GitHub: cada usuario la construye en su PC.
+- Faltan el OCR de fotos y la traducción automática a español. Las herramientas de análisis léxico existente son ayudas de revisión, no resultados de modelos de IA evaluados.
