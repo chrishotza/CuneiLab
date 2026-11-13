@@ -1,4 +1,61 @@
-# CuneiLab v0.6 — estación de OCR por lotes y evaluación reproducible
+# CuneiLab v0.8 — lectura cuneiforme con evaluación por cara revisada
+
+**Estado:** editor + motor de consulta de corpus + adaptadores OCR opcionales. No hay un modelo OCR preinstalado ni una traducción automática al español validada. Las pruebas automáticas usan imágenes sintéticas; no son una medición de precisión neuronal.
+
+## v0.8: corregimos el error de evaluación de fotografías compuestas
+
+**Importante:** en CuneiML `bboxes` define el rectángulo de una **cara principal** dentro de una fotografía compuesta, pero **no la identifica como anverso o reverso**. La v0.7 podía crear un `gold.jsonl` con TODAS las caras para una sola fotografía. Esa comparación era metodológicamente inválida. El viejo `scripts/prepare_cuneiml.py` ahora redirige al preparador seguro y su antigua función programática `prepare()` queda deshabilitada. Los resultados previos que usaran ese método **no deben citarse como tasas de error válidas**.
+
+El nuevo `scripts/prepare_cuneiml_faces.py` usa solo **fotografías locales que tengas derecho a utilizar**, recorta según el `bboxes` oficial mediante Pillow, guarda huellas SHA-256 del original y del recorte, y **exige revisión de la cara antes de crear referencias**.
+
+### Paso 1 — ver recortes y asignar la cara
+
+Instalá la dependencia liviana (no instala modelos):
+
+```powershell
+py -3 -m pip install "Pillow>=10,<13"
+```
+
+Descargá **manualmente** `CuneiMLv1.2.json` desde [Zenodo](https://zenodo.org/records/10806319) y guardá en `data/cuneiml/`; las fotos `P123456.jpg` deben proceder de una fuente donde tengas derechos de uso y estar en `data/cuneiml/photos/`.
+
+```powershell
+py -3 scripts/prepare_cuneiml_faces.py --mode review --metadata data/cuneiml/CuneiMLv1.2.json --photos data/cuneiml/photos --output-dir data/cuneiml/review01 --split all --max-tablets 50 --verify-md5
+```
+
+Se generan `review01/images/P......_crop.png`, `faces_template.jsonl` y un informe `dataset.json` **sin `gold.jsonl`**. Abrí cada recorte y editá solo el valor `face` de `null` a `"obverse"`, `"reverse"`, `"left"`, etc., cuando la orientación esté confirmada. **No inventes la cara**: si no sabés cuál es, conservá `null`. No alteres los hashes.
+
+Ejemplo de una línea *antes* de revisar (los SHA reales los crea el programa):
+
+```json
+{"id":"P131837","face":null,"source_sha256":"...","crop_sha256":"...","crop_box":[204,200,523,522],"image":"images/P131837_crop.png"}
+```
+
+### Paso 2 — producir solo pares imagen/cara verificados
+
+```powershell
+py -3 scripts/prepare_cuneiml_faces.py --mode prepare --metadata data/cuneiml/CuneiMLv1.2.json --photos data/cuneiml/photos --face-map data/cuneiml/review01/faces_template.jsonl --output-dir data/cuneiml/benchmark01 --split all --max-tablets 50 --verify-md5
+py -3 scripts/batch_nabu.py --manifest data/cuneiml/benchmark01/manifest.jsonl --check
+```
+
+La herramienta crea `images/P131837_reverse.png`, `manifest.jsonl` con ID `P131837-reverse`, `gold.jsonl` **solo con los signos de esa cara**, `audit.jsonl` con la cara, el recorte y los hashes, y un `dataset.json`. Rechaza caras con Unicode incompleto o dañado; nunca elimina silenciosamente los signos ilegibles. Aborta si la fotografía o su recorte cambiaron después de la revisión. El resultado solo es **exploratorio**: nuestro split por ID no demuestra separación del conjunto de entrenamiento de NabuOCR.
+
+Una vez que realmente ejecutes los pesos de NabuOCR con `scripts/batch_nabu.py`, evaluá un lote de recortes con:
+
+```powershell
+py -3 scripts/evaluate_nabu.py --gold data/cuneiml/benchmark01/gold.jsonl --predicted data/ocr/batch/predictions.jsonl --cropped-faces --output data/ocr/batch/metrics.json
+```
+
+`--cropped-faces` compara **solamente caracteres cuneiformes** e ignora marcadores `@obverse/@reverse` que puede emitir el modelo; en una foto de una sola cara esos marcadores no deben penalizar ni favorecer la precisión de los signos. La tasa de error incluye una versión que cuenta los documentos sin OCR como fallos totales. Este resultado **no** es una traducción lingüística ni equivale al TER tokenizado del artículo.
+
+### Lo que la v0.8 todavía no prueba
+
+- No se descargaron ni ejecutaron pesos de NabuOCR en GitHub Actions (son ~2 GB, con dependencias independientes).
+- No se descargaron automáticamente fotografías ni el JSON de Zenodo. No hay un benchmark visual real publicado por CuneiLab.
+- Las pruebas locales y CI validan el recorte, la concordancia foto–cara, la procedencia y las métricas usando *fixtures sintéticos*.
+
+---
+
+# Historial: CuneiLab v0.6 — estación de OCR por lotes y evaluación reproducible
 
 **Estado:** estación de trabajo experimental que funciona offline para anotación, glosario y lectura documentada de corpus. **NO traduce automáticamente fotografías ni incluye un modelo neuronal preinstalado.**
 
@@ -199,27 +256,6 @@ Este repositorio no fija todavía una licencia de software. **El OCR detecta cla
 
 NabuOCR, Zack Williams (2025), licencia Apache-2.0; véase https://huggingface.co/boatbomber/NabuOCR. CuneiLab no redistribuye sus pesos.
 
-## v0.7 — Banco de prueba CuneiML con referencias de fotografías (sin pesos)
+## v0.7 — Histórico (no usar para evaluar OCR)
 
-**Objetivo práctico:** preparar parejas de fotografías y signos Unicode **documentados** para probar NabuOCR. [CuneiML v1.2](https://zenodo.org/records/10806319) (Chen, Agarwal, Berg-Kirkpatrick y Myerston) publica metadatos de 38.947 fotografías, coordenadas de recortes, transliteraciones y signos Unicode. **Las fotos no forman parte del JSON de Zenodo** y deben obtenerse por separado desde fuentes autorizadas y respetando sus derechos. El artículo señala condiciones **CC BY-NC 4.0** para los datos; el código de su repositorio tiene su propia licencia. No se empaquetan los datos ni las fotos en CuneiLab.
-
-1. Descargá manualmente `CuneiMLv1.2.json` desde [Zenodo](https://zenodo.org/records/10806319) a `data/cuneiml/CuneiMLv1.2.json` (unos 205 MB). Si querés comprobar la integridad publicada, usá `--verify-md5`; checksum MD5 upstream `fb11e8d06d9f03030f4b19def7621034`.
-2. Guardá fotografías que tengas derecho de usar en `data/cuneiml/photos/` con nombres de tipo `P131837.jpg` (también se admiten PNG y WebP). Se trabaja **offline**, sin hacer scraping o descargas automáticas de imágenes.
-3. Prepará un conjunto exploratorio y comprobá el manifiesto:
-
-```powershell
-py -3 scripts/prepare_cuneiml.py --metadata data/cuneiml/CuneiMLv1.2.json --photos data/cuneiml/photos --output-dir data/cuneiml/benchmark-test --split test --max-tablets 50 --verify-md5
-py -3 scripts/batch_nabu.py --manifest data/cuneiml/benchmark-test/manifest.jsonl --check
-```
-
-El preparador genera `gold.jsonl`, `manifest.jsonl`, `audit.jsonl` (IDs y SHA-256 de cada fotografía) y `dataset.json`. Copia únicamente las fotografías locales seleccionadas a la salida para reproducibilidad. **Se rechazan las líneas sin Unicode completo, marcas de daños como `<D>` y caras desconocidas**; nunca se sustituyen por glifos inventados.
-
-Luego, cuando estén instalados los pesos de NabuOCR, ejecutá el lote según la sección v0.6 y evaluá:
-
-```powershell
-py -3 scripts/evaluate_nabu.py --gold data/cuneiml/benchmark-test/gold.jsonl --predicted data/ocr/batch/predictions.jsonl --output data/ocr/batch/evaluation.json
-```
-
-**Precaución científica esencial:** el hash de split de CuneiLab es consistente por identificador de tablilla, pero **NO acredita independencia respecto al entrenamiento de NabuOCR**, que también usó imágenes de CDLI. Los números deben titularse «exploratorios» hasta contrastar IDs de entrenamiento del modelo. Podés utilizar `--exclude-ids ruta/a/ids_entrenamiento.txt` para excluir IDs conocidos, siempre que esa lista sea fiable. Además, la combinación de caras/líneas debe revisarse manualmente para confirmar que corresponda con la vista fotografiada.
-
-**Métricas sin ocultar fallas:** `evaluate_nabu.py` ahora distingue el error por signos **solo entre OCR completados** (`micro_sign_error_rate`) de la tasa que **cuenta los documentos sin predicción como todos sus signos eliminados** (`micro_sign_error_rate_including_missing`). También registra `coverage_images`. No equivale al TER del tokenizer del autor ni evalúa traducciones a español. No hay ninguna inferencia real de fotografías ejecutada en CI: las pruebas usan fixtures sintéticos.
+La preparación inicial de CuneiML de v0.7 mezclaba en una sola referencia glifos de múltiples caras. Su función `prepare()` fue desactivada; su CLI redirige a v0.8. Cualquier métrica generada con ese protocolo debe considerarse inválida y volver a calcularse con recortes cuya cara haya sido revisada.

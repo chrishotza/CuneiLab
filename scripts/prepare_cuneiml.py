@@ -108,77 +108,9 @@ def split_for(identifier: str):
     return 'train' if fraction < 80 else ('validation' if fraction < 90 else 'test')
 
 
-def prepare(records, photos: Path, output: Path, *, maximum: int = 50, partition: str = 'test', exclude_ids=frozenset()):
-    """Write manifest+gold only from locally present photographs and complete Unicode.
-
-    Existing output is rejected, preventing accidental mixing of two datasets.
-    """
-    photos, output = Path(photos).resolve(), Path(output).resolve()
-    if maximum < 1 or maximum > 10000:
-        raise ValueError('max-tablets debe estar entre 1 y 10000')
-    if partition not in ('all', 'train', 'validation', 'test'):
-        raise ValueError('Split inválido')
-    if not photos.is_dir():
-        raise ValueError('No existe la carpeta de fotos')
-    if output.exists():
-        raise ValueError('La carpeta de salida ya existe; elegí una carpeta nueva')
-    selected = []
-    seen = set()
-    stats = {'metadata_rows': 0, 'invalid_or_incomplete': 0, 'not_in_partition': 0,
-             'excluded_ids': 0, 'missing_local_photo': 0, 'duplicate_ids': 0}
-    # Sort by ID rather than relying on the source file's iteration order.
-    candidates = []
-    for record in records:
-        stats['metadata_rows'] += 1
-        if not isinstance(record, dict):
-            stats['invalid_or_incomplete'] += 1
-            continue
-        try:
-            identifier = canonical_id(record.get('id'))
-            text, count = reference_glyphs(record)
-        except ValueError:
-            stats['invalid_or_incomplete'] += 1
-            continue
-        if identifier in seen:
-            stats['duplicate_ids'] += 1
-            continue
-        seen.add(identifier)
-        if identifier in exclude_ids:
-            stats['excluded_ids'] += 1
-            continue
-        if partition != 'all' and split_for(identifier) != partition:
-            stats['not_in_partition'] += 1
-            continue
-        photo = find_photo(photos, identifier)
-        if photo is None:
-            stats['missing_local_photo'] += 1
-            continue
-        candidates.append((identifier, photo, text, count))
-    candidates.sort(key=lambda item: item[0])
-    selected = candidates[:maximum]
-    if not selected:
-        raise ValueError('No hay pares válidos imagen/Unicode; revisá los IDs, la carpeta de fotos y el split')
-    output.mkdir(parents=True, exist_ok=False)
-    (output / 'images').mkdir()
-    manifest, gold, audit = [], [], []
-    for identifier, photo, reference, n in selected:
-        dest = output / 'images' / photo.name
-        shutil.copy2(photo, dest)
-        manifest.append({'id': identifier, 'image': 'images/' + dest.name})
-        gold.append({'id': identifier, 'text': reference})
-        audit.append({'id': identifier, 'source_filename': photo.name, 'image_sha256': sha256(dest),
-                      'reference_sign_count': n, 'partition': split_for(identifier)})
-    atomic_jsonl(output / 'manifest.jsonl', manifest)
-    atomic_jsonl(output / 'gold.jsonl', gold)
-    atomic_jsonl(output / 'audit.jsonl', audit)
-    summary = {'format': 'cuneilab-cuneiml-benchmark', 'version': 1,
-               'source': SOURCE_URL, 'source_version': '1.2',
-               'partition': partition, 'images_selected': len(selected), 'stats': stats,
-               'model_holdout_verified': False,
-               'warning': 'Evaluación exploratoria: CuneiML puede coincidir con el entrenamiento de NabuOCR; este split por ID NO verifica independencia respecto al modelo. Los derechos de las fotografías deben verificarse por separado.',
-               'reference': 'CuneiML (Chen et al.); doi:10.5281/zenodo.10806319'}
-    atomic_json(output / 'dataset.json', summary)
-    return summary
+def prepare(*args, **kwargs):
+    """Unsafe v0.7 method retired: cropped photos cannot be matched to all faces."""
+    raise ValueError('v0.7 sin alineación de caras está desactivada; usá make_dataset en scripts.prepare_cuneiml_faces')
 
 
 def excluded_ids(path):
@@ -194,24 +126,9 @@ def excluded_ids(path):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description='Preparar benchmark exploratorio CuneiML desde fotos LOCALES')
-    parser.add_argument('--metadata', required=True, type=Path, help='Archivo CuneiMLv1.2.json original')
-    parser.add_argument('--verify-md5', action='store_true', help='Comprobar checksum MD5 publicado por Zenodo antes de abrir el archivo')
-    parser.add_argument('--photos', required=True, type=Path, help='Carpeta con imágenes P123456.jpg/png/webp obtenidas legítimamente')
-    parser.add_argument('--output-dir', required=True, type=Path)
-    parser.add_argument('--max-tablets', type=int, default=50)
-    parser.add_argument('--split', choices=['all', 'train', 'validation', 'test'], default='test')
-    parser.add_argument('--exclude-ids', type=Path, help='Lista de IDs conocidos del entrenamiento (uno por línea)')
-    args = parser.parse_args(argv)
-    try:
-        if args.verify_md5 and md5_file(args.metadata) != SOURCE_MD5:
-            raise ValueError('Checksum MD5 de CuneiML distinto del publicado por Zenodo (v1.2). No se usó el archivo.')
-        report = prepare(records_from_metadata(args.metadata), args.photos, args.output_dir,
-                         maximum=args.max_tablets, partition=args.split, exclude_ids=excluded_ids(args.exclude_ids))
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
-        parser.exit(2, f'Error: {exc}\n')
-    print(json.dumps(report, ensure_ascii=False, indent=2))
-    return 0
+    """Safety redirect: v0.7 generated whole-tablet gold for one crop."""
+    from scripts.prepare_cuneiml_faces import main as face_main
+    return face_main(argv)
 
 
 if __name__ == '__main__':

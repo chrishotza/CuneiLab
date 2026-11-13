@@ -46,22 +46,12 @@ class CuneiMLTests(unittest.TestCase):
         f.write_text('123', encoding='utf-8')
         with self.assertRaises(ValueError): records_from_metadata(f)
 
-    def test_manifest_compatible_with_batch_and_evaluation(self):
-        report = prepare([row()], self.photos, self.root / 'out', partition='all')
-        self.assertEqual(report['images_selected'], 1)
-        self.assertFalse(report['model_holdout_verified'])
-        inputs = read_manifest(self.root / 'out' / 'manifest.jsonl')
-        self.assertEqual(inputs[0]['id'], 'P123456')
-        gold = read_jsonl(self.root / 'out' / 'gold.jsonl')
-        metrics = evaluate(gold, gold)
-        self.assertEqual(metrics['micro_sign_error_rate'], 0)
-        self.assertEqual(metrics['images_scored'], 1)
-        self.assertEqual(json.loads((self.root / 'out' / 'dataset.json').read_text())['source_version'], '1.2')
-        with self.assertRaisesRegex(ValueError, 'ya existe'):
+    def test_v07_unsafe_api_is_disabled(self):
+        with self.assertRaisesRegex(ValueError, 'desactivada'):
             prepare([row()], self.photos, self.root / 'out', partition='all')
 
     def test_no_images_no_fake_results(self):
-        with self.assertRaisesRegex(ValueError, 'No hay pares'):
+        with self.assertRaisesRegex(ValueError, 'desactivada'):
             prepare([row()], self.photos, self.root / 'nope', partition='test', exclude_ids={'P123456'})
         self.assertFalse((self.root / 'nope').exists())
 

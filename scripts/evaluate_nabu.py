@@ -9,7 +9,7 @@ import json
 import sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from transcription import score, TranscriptionError
+from transcription import score, glyph_tokens, edit_distance, TranscriptionError
 
 
 def read_jsonl(path):
@@ -25,18 +25,37 @@ def read_jsonl(path):
     return rows
 
 
-def evaluate(gold, predicted):
+def score_cropped_face(reference, prediction):
+    """Glyph-only edit rate for a *single reviewed face crop*.
+
+    A model may emit @obverse/@reverse tags even though the crop reference
+    intentionally contains no full-tablet surface markers.
+    """
+    ref = [tok for tok in glyph_tokens(reference) if not tok.startswith('@')]
+    pred = [tok for tok in glyph_tokens(prediction) if not tok.startswith('@')]
+    if not ref:
+        raise TranscriptionError('Referencia sin signos')
+    if len(ref) > 5000 or len(pred) > 5000:
+        raise TranscriptionError('Máximo 5000 signos por par')
+    edits = edit_distance(ref, pred)
+    return {'reference_tokens': len(ref), 'predicted_tokens': len(pred),
+            'edit_errors': edits, 'sign_error_rate': edits / len(ref),
+            'metric': 'Unicode-sign-only Levenshtein (ignores surface tags)'}
+
+
+def evaluate(gold, predicted, *, cropped_faces=False):
+    score_fn = score_cropped_face if cropped_faces else score
     missing=sorted(set(gold)-set(predicted)); extra=sorted(set(predicted)-set(gold))
     scored=[]
     for name in sorted(set(gold)&set(predicted)):
-        try: metrics=score(gold[name],predicted[name])
+        try: metrics=score_fn(gold[name],predicted[name])
         except TranscriptionError as e: raise ValueError(f'{name}: {e}') from e
         scored.append({'id':name,**metrics})
     edits=sum(r['edit_errors'] for r in scored)
     tokens=sum(r['reference_tokens'] for r in scored)
     # Count absent predictions as complete deletions in the dataset-wide metric.
     # Otherwise a model returning only its easiest image could appear perfect.
-    missing_tokens=sum(score(gold[name], '')['reference_tokens'] for name in missing)
+    missing_tokens=sum(score_fn(gold[name], '')['reference_tokens'] for name in missing)
     all_tokens=tokens+missing_tokens
     return {'images_scored':len(scored),'missing_predictions':missing,'unmatched_predictions':extra,
             'micro_sign_error_rate':(edits/tokens if tokens else None),
@@ -47,7 +66,8 @@ def evaluate(gold, predicted):
             'dataset_warning':'The including_missing metric treats each missing OCR output as deleting every reference sign; both error rates can exceed 1 with insertions.',
             'macro_sign_error_rate':(sum(r['sign_error_rate'] for r in scored)/len(scored) if scored else None),
             'total_edit_errors':edits,'reference_signs':tokens,
-            'metric':'Levenshtein over Unicode signs and surface markers (not BPE/tokenizer TER)',
+            'metric':('Levenshtein over Unicode glyphs on reviewed face crops; surface tags ignored'
+                      if cropped_faces else 'Levenshtein over Unicode signs and surface markers (not BPE/tokenizer TER)'),
             'items':scored}
 
 
@@ -56,8 +76,9 @@ def main(argv=None):
     p.add_argument('--gold',type=Path,required=True,help='JSONL con {id,text} de referencia')
     p.add_argument('--predicted',type=Path,required=True,help='JSONL con {id,text} generados')
     p.add_argument('--output',type=Path)
+    p.add_argument('--cropped-faces',action='store_true',help='Comparar solo glifos; ignorar @obverse/@reverse en recortes por cara')
     a=p.parse_args(argv)
-    report=evaluate(read_jsonl(a.gold),read_jsonl(a.predicted))
+    report=evaluate(read_jsonl(a.gold),read_jsonl(a.predicted),cropped_faces=a.cropped_faces)
     text=json.dumps(report,ensure_ascii=False,indent=2)
     if a.output:
         a.output.parent.mkdir(parents=True,exist_ok=True)
