@@ -23,44 +23,56 @@ def prepare_messages(image):
     return [{'role':'user','content':[{'type':'image','image':image},{'type':'text','text':'OCR:'}]}]
 
 
+
+class NabuSession:
+    """Load NabuOCR weights once; reuse the same model for many images."""
+    def __init__(self, model_name=DEFAULT_MODEL, device='auto', revision=None, trust_remote_code=False):
+        if not trust_remote_code:
+            raise ValueError('Este modelo ejecuta código de terceros; exige --trust-remote-code.')
+        if not revision or not re.fullmatch(r'[a-fA-F0-9]{40}', revision):
+            raise ValueError('Se exige --revision con SHA completo de 40 caracteres.')
+        try:
+            import torch
+            from PIL import Image
+            from transformers import AutoModelForCausalLM, AutoProcessor
+        except ImportError as exc:
+            raise RuntimeError('Faltan PyTorch, Pillow o Transformers. Consultá README.') from exc
+        if device=='auto':
+            device='cuda' if torch.cuda.is_available() else 'cpu'
+        if device.startswith('cuda') and not torch.cuda.is_available():
+            raise RuntimeError('CUDA no está disponible.')
+        dtype=torch.bfloat16 if device.startswith('cuda') and torch.cuda.is_bf16_supported() else torch.float32
+        args={'trust_remote_code':True,'revision':revision,'torch_dtype':dtype}
+        self.model=AutoModelForCausalLM.from_pretrained(model_name,**args).to(device).eval()
+        self.processor=AutoProcessor.from_pretrained(model_name,trust_remote_code=True,revision=revision)
+        self.device=device
+        self.torch=torch
+        self.Image=Image
+        self.model_id=f'{model_name}@{revision}'
+
+    def predict(self, image_file, *, max_new_tokens=1024):
+        if not 1 <= max_new_tokens <= 4096:
+            raise ValueError('max_new_tokens fuera de rango [1,4096]')
+        with self.Image.open(image_file) as input_image:
+            width,height=input_image.size
+            if width>30000 or height>30000 or min(width,height)<1:
+                raise ValueError('Imagen fuera de los límites admitidos')
+            image=input_image.convert('RGB')
+            inputs=self.processor.apply_chat_template(prepare_messages(image),tokenize=True,
+                add_generation_prompt=True,return_dict=True,return_tensors='pt').to(self.device)
+        with self.torch.inference_mode():
+            generated=self.model.generate(**inputs,max_new_tokens=max_new_tokens,
+                repetition_penalty=1.03,do_sample=False,use_cache=True)
+        completion=generated[0,inputs['input_ids'].shape[1]:]
+        predicted=self.processor.decode(completion,skip_special_tokens=False).strip()
+        for eos in ('</s>','<|endoftext|>','<|im_end|>'):
+            if predicted.endswith(eos):predicted=predicted[:-len(eos)].strip()
+        return make_document(predicted,width,height,Path(image_file).name,
+            model=self.model_id,source='NabuOCR local inference (machine-generated; unverified)')
+
+
 def infer(image_file, model_name=DEFAULT_MODEL, device='auto', max_new_tokens=1024, revision=None, trust_remote_code=False):
-    if not trust_remote_code:
-        raise ValueError('Este modelo requiere código personalizado; agregá --trust-remote-code después de revisar su repositorio.')
-    if not revision or not re.fullmatch(r'[a-fA-F0-9]{40}', revision):
-        raise ValueError('Se exige --revision con el SHA completo de 40 caracteres del modelo revisado.')
-    try:
-        import torch
-        from PIL import Image
-        from transformers import AutoModelForCausalLM, AutoProcessor
-    except ImportError as exc:
-        raise RuntimeError('Faltan PyTorch, Pillow o Transformers. Consultá la instalación opcional del README.') from exc
-    if device=='auto':
-        device='cuda' if torch.cuda.is_available() else 'cpu'
-    if device.startswith('cuda') and not torch.cuda.is_available():
-        raise RuntimeError('No hay CUDA disponible. Elegí --device cpu o instalá CUDA.')
-    dtype=torch.bfloat16 if device.startswith('cuda') and torch.cuda.is_bf16_supported() else torch.float32
-    load_args={'trust_remote_code': True, 'torch_dtype':dtype}
-    if revision: load_args['revision']=revision
-    model=AutoModelForCausalLM.from_pretrained(model_name,**load_args).to(device).eval()
-    processor=AutoProcessor.from_pretrained(model_name,trust_remote_code=True, **({'revision':revision} if revision else {}))
-    with Image.open(image_file) as input_image:
-        width,height=input_image.size
-        if width>30000 or height>30000 or min(width,height)<1:
-            raise ValueError('Imagen fuera de los límites admitidos')
-        image=input_image.convert('RGB')
-        inputs=processor.apply_chat_template(prepare_messages(image),tokenize=True,
-            add_generation_prompt=True,return_dict=True,return_tensors='pt').to(device)
-    with torch.inference_mode():
-        generated=model.generate(**inputs,max_new_tokens=max_new_tokens,
-                                 repetition_penalty=1.03,do_sample=False,use_cache=True)
-    completion=generated[0,inputs['input_ids'].shape[1]:]
-    predicted=processor.decode(completion,skip_special_tokens=False).strip()
-    # Strip the outer EOS only; preserve @obverse/@reverse tokens used by the model.
-    for eos in ('</s>','<|endoftext|>','<|im_end|>'):
-        if predicted.endswith(eos): predicted=predicted[:-len(eos)].strip()
-    return make_document(predicted,width,height,Path(image_file).name,
-                         model=f'{model_name}@{revision or "un-pinned"}',
-                         source='NabuOCR local inference (machine-generated; unverified)')
+    return NabuSession(model_name, device, revision, trust_remote_code).predict(image_file,max_new_tokens=max_new_tokens)
 
 
 def main(argv=None):

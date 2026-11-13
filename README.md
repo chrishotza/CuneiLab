@@ -1,7 +1,52 @@
-# CuneiLab v0.5 — editor de tablillas y puente de detección cuneiforme
+# CuneiLab v0.6 — estación de OCR por lotes y evaluación reproducible
 
 **Estado:** estación de trabajo experimental que funciona offline para anotación, glosario y lectura documentada de corpus. **NO traduce automáticamente fotografías ni incluye un modelo neuronal preinstalado.**
 
+
+
+## v0.6 — Procesar muchas fotografías sin reiniciar NabuOCR
+
+Se agregó `scripts/batch_nabu.py` para generar un lote reproducible de **fotografías → signos Unicode**. Carga el modelo una sola vez durante la corrida, produce un JSON CuneiLab por imagen válida y un `predictions.jsonl` compatible con el evaluador. No calcula exactitud sin referencias independientes.
+
+### Preparar el manifiesto
+
+Creá un archivo `data/heldout/manifest.jsonl` (una línea JSON por imagen) y colocá las fotos **dentro de esa carpeta**, por ejemplo en `data/heldout/images/`:
+
+```jsonl
+{"id":"P000001","image":"images/P000001.jpg"}
+{"id":"P000002","image":"images/P000002.png"}
+```
+
+Los ID deben ser únicos y las rutas relativas no pueden escapar de la carpeta del manifiesto. `--check` calcula SHA-256 y detecta imágenes ausentes, duplicados y rutas inseguras; **no abre el modelo, no baja pesos y no modifica archivos**:
+
+```powershell
+py -3 scripts/batch_nabu.py --manifest data/heldout/manifest.jsonl --check
+```
+
+### Ejecutar lote con un checkpoint fijo
+
+Desde el entorno virtual con PyTorch, Transformers y NabuOCR previamente revisados:
+
+```powershell
+.venv-nabu\Scripts\python scripts/batch_nabu.py --manifest data/heldout/manifest.jsonl --output-dir data/ocr/lote01 --revision SHA_COMPLETO_DE_40_CARACTERES --device auto --trust-remote-code
+```
+
+- Revisá el código de terceros antes de pasar `--trust-remote-code`. La revisión SHA debe ser **exacta y previamente verificada**, nunca una etiqueta móvil como `main`.
+- Salidas: `run.json` (modelo, revisión, huellas de imágenes y configuración), `predictions.jsonl` (solo lecturas conseguidas), `errors.jsonl` (errores), `summary.json` (cobertura) y `documents/<ID>.json` (importables en CuneiLab).
+- Si la ejecución se interrumpe, repetí el mismo comando con `--resume`. No permite reanudar cuando cambia el modelo, el manifiesto o los bytes de una fotografía. No sobrescribe resultados anteriores sin confirmación explícita mediante un directorio nuevo.
+- Un error de OCR **no** se convierte en una lectura falsa: se registra como fallo y se excluye de las predicciones.
+
+### Medir contra una referencia independiente
+
+Prepará `data/heldout/gold.jsonl` con `{"id":"P000001","text":"𒀭𒆠"}` por línea. Cada referencia debe estar revisada y corresponder a la misma fotografía. Ejecutá:
+
+```powershell
+py -3 scripts/evaluate_nabu.py --gold data/heldout/gold.jsonl --predicted data/ocr/lote01/predictions.jsonl --output data/ocr/lote01/metrics.json
+```
+
+El evaluador muestra IDs faltantes y la tasa de errores **solo sobre las imágenes que tienen predicción**, por lo que **siempre debés citar junto con ella la cobertura del lote** (`succeeded/total`). No confundas esa tasa con la calidad de traducción ni con el TER del autor. Conservá separados entrenamiento, validación y evaluación; no importes el conjunto de prueba al buscador de entrenamiento.
+
+**Estado verificable:** tests sin pesos para la ejecución, hashes, rutas, reanudación, aislamiento de modelos y fallos. No se afirma haber calculado un benchmark neuronal real. El conjunto de evaluación y las fotografías deben aportarse/descargarse respetando sus licencias.
 
 ## v0.5 — OCR de fotografía a Unicode con NabuOCR (opcional)
 
