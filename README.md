@@ -1,4 +1,42 @@
-# CuneiLab v0.8 — lectura cuneiforme con evaluación por cara revisada
+# CuneiLab v0.9 — OCR local desde navegador y revisión de signos
+
+## v0.9 — Ejecutar OCR local desde el navegador (opt-in)
+
+Ahora el botón **Ejecutar OCR local** conecta la fotografía cargada con el
+script `scripts/run_nabu_ocr.py`. No hace falta producir/importar el JSON a
+mano. La aplicación no incluye el modelo y **NO ejecuta OCR por defecto**.
+
+1. Instalá NabuOCR siguiendo la sección v0.5 en un entorno virtual separado.
+   Antes de habilitarlo **revisá el código de terceros** que se ejecutará con
+   `trust_remote_code` y consultá el **commit SHA completo de 40 caracteres**
+   desde el historial de https://huggingface.co/boatbomber/NabuOCR . No uses
+   valores inventados ni `main`; algunos cambios de versión pueden requerir
+   adaptar las dependencias.
+2. Desde la raíz del proyecto, en PowerShell de Windows, iniciá el servidor:
+
+   ```powershell
+   py -3 server.py --enable-local-ocr --ocr-python .venv-nabu\Scripts\python.exe --ocr-revision SHA_REAL_VERIFICADO_DE_40_CARACTERES --accept-third-party-model-code --ocr-device auto
+   ```
+
+   *Reemplazá el marcador `SHA_REAL_...` por el hash real del commit revisado.*
+   `--ocr-device cpu` puede ser mucho más lento y consumir bastante memoria.
+   `--ocr-timeout 600` fija el máximo de ejecución (rango admitido: 30–1800 s).
+3. Abrí `http://127.0.0.1:8765`, cargá tu foto y pulsá **Ejecutar OCR local**.
+   Cuando termine, revisá los signos en la vista previa. Solo se copian al
+   editor si pulsás **Usar signos en el editor**.
+
+El servidor solo escucha en `127.0.0.1`. La API de OCR exige mismo origen y
+una cabecera especial, rechaza firmas de imagen no válidas y fotos de más
+12 MB, y admite solo **una inferencia a la vez**. Las fotografías temporales
+se eliminan al completar la petición; la foto no se sube a un servicio web.
+No se descargan pesos por abrir CuneiLab; la primera ejecución explícita del
+modelo podría descargarlos desde Hugging Face, bajo sus condiciones.
+
+**Estado de validación:** el flujo HTTP y la interfaz se prueban con un modelo
+simulado y un ejecutor falso. Todavía no se han descargado los pesos ni
+comprobado una inferencia real, y no tenemos una tasa de error medida con
+fotos independientes. NabuOCR produce secuencias Unicode, no traducciones.
+
 
 **Estado:** editor + motor de consulta de corpus + adaptadores OCR opcionales. No hay un modelo OCR preinstalado ni una traducción automática al español validada. Las pruebas automáticas usan imágenes sintéticas; no son una medición de precisión neuronal.
 

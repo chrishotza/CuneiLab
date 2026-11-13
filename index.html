@@ -27,7 +27,7 @@
 
     <main>
       <section class="intro">
-        <div><div class="eyebrow">EDICIÓN EXPERIMENTAL · v0.5</div><h1>Leer el pasado,<br><em>signo por signo.</em></h1><p>Explorá tablillas, anotá la escritura y analizá una transliteración en un solo espacio de trabajo.</p></div>
+        <div><div class="eyebrow">EDICIÓN EXPERIMENTAL · v0.9</div><h1>Leer el pasado,<br><em>signo por signo.</em></h1><p>Explorá tablillas, anotá la escritura y analizá una transliteración en un solo espacio de trabajo.</p></div>
         <div class="intro-aside"><div class="rune-pattern" aria-hidden="true">𒀭 𒈗 𒆠<br>𒂍 𒁾 𒀀</div><div class="metric"><strong id="signCount">1.118</strong><span>signos Unicode para explorar</span></div></div>
       </section>
 
@@ -48,10 +48,10 @@
               <div class="vision-results" id="visionResults" aria-live="polite"></div>
             </section>
             <section class="vision-import" aria-label="Lectura neuronal a Unicode">
-              <div class="list-heading"><strong>Lectura neuronal de signos Unicode · NabuOCR</strong><span class="pill">v0.5 opcional</span></div>
-              <p class="small-note">Ejecutá <code>scripts/run_nabu_ocr.py</code> sobre tu foto con el modelo NabuOCR instalado, después importá su JSON. Este motor produce <b>secuencias Unicode, no recuadros ni traducciones</b>. Requiere descargar el modelo y revisar los resultados.</p>
-              <div class="vision-actions"><label class="btn btn-secondary small" for="nabuImport">Importar transcripción neuronal (.json)</label><button class="btn btn-accent small" id="nabuApply" type="button" disabled>Usar signos en el editor</button></div>
-              <div id="nabuStatus" class="small-note" role="status" aria-live="polite">No hay ninguna transcripción neuronal importada.</div>
+              <div class="list-heading"><strong>Lectura neuronal de signos Unicode · NabuOCR</strong><span class="pill">v0.9 local</span></div>
+              <p class="small-note">Para analizar la foto desde aquí, primero instalá NabuOCR en un entorno virtual y activalo explícitamente en el servidor local. <b>No se envían fotografías a servicios externos</b>. También podés importar un JSON generado con el script de NabuOCR. La salida son signos Unicode propuestos, no traducciones.</p>
+              <div class="vision-actions"><button class="btn btn-secondary small" id="nabuRunLocal" type="button" disabled>Ejecutar OCR local</button><label class="btn btn-secondary small" for="nabuImport">Importar transcripción neuronal (.json)</label><button class="btn btn-accent small" id="nabuApply" type="button" disabled>Usar signos en el editor</button></div>
+              <div id="nabuStatus" class="small-note" role="status" aria-live="polite">Comprobando disponibilidad del OCR local…</div>
               <pre id="nabuPreview" class="nabu-preview" hidden></pre>
             </section>
             <div class="annotation-form" id="annotationForm" hidden><div class="annotation-heading"><strong>Nueva región marcada</strong><button class="icon-btn" id="cancelAnnotation" title="Cancelar">×</button></div><div class="annotation-fields"><label>Lectura propuesta<input id="annotationReading" placeholder="p. ej. lugal, AN, ?"></label><label>Nota / alternativa<input id="annotationNote" placeholder="p. ej. signo parcialmente erosionado"></label></div><button class="btn btn-accent small" id="saveAnnotation">Guardar región</button></div>

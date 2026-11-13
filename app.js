@@ -6,6 +6,8 @@
   const V = window.CuneiVision;
   const $ = id => document.getElementById(id);
   const state = { imageUrl:'', image:new Image(), imageFilename:'', predictions:[], visionSource:'', annotations:[], draftRect:null, mouseStart:null, result:null, lastSearch:'', title:'', language:'sux', transliteration:'', glyphs:'', contrast:110, brightness:100, gray:false };
+  // Read-only snapshot for explicit same-origin OCR upload; no automatic image transfer.
+  window.CuneiLabPhotoForOCR = () => ({url:state.imageUrl, filename:state.imageFilename, width:state.image.naturalWidth||0, height:state.image.naturalHeight||0});
   let toastTimer=null;
   const esc = value=>String(value ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   function toast(msg) { const t=$('toast');t.textContent=msg;t.classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('visible'),3000); }
@@ -35,6 +37,7 @@
     $('brightness').value=Math.max(50,Math.min(180,Number(d.filters?.brightness)||100));
     $('grayscale').checked=!!d.filters?.grayscale;
     updateFilterLabels();renderAnnotations();
+    state.imageFilename=''; delete $('imageStage').dataset.filename;
     if(d.image) loadImageUrl(d.image, () => {
       try { if(d.vision?.detections?.length){const v=V.canonical({format:'cuneilab-detections',version:1,source:d.vision.source||'proyecto',image:d.vision.image,detections:d.vision.detections});V.matchSize(v,state.image.naturalWidth,state.image.naturalHeight);state.predictions=v.detections;state.visionSource=v.source;} } catch(err){toast('Las predicciones guardadas no coinciden con la fotografía.');}
       renderDetections();
@@ -43,7 +46,7 @@
     analyze();persist();if(showMessage) toast('Proyecto importado.');
   }
   function clearPhoto(save=true) {
-    state.imageUrl='';state.image=new Image();delete $('imageStage').dataset.filename;delete $('imageStage').dataset.imageWidth;delete $('imageStage').dataset.imageHeight;state.draftRect=null;state.predictions=[];state.visionSource='';renderDetections();
+    state.imageUrl='';state.image=new Image();state.imageFilename='';delete $('imageStage').dataset.filename;delete $('imageStage').dataset.imageWidth;delete $('imageStage').dataset.imageHeight;state.draftRect=null;state.predictions=[];state.visionSource='';renderDetections();
     $('imageEmpty').hidden=false;$('tabletCanvas').hidden=true;$('annotationForm').hidden=true;
     if(save)persist();
   }
