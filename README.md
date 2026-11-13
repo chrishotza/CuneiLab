@@ -1,3 +1,33 @@
+# CuneiLab v1.1 — evidencia Unicode y coincidencias sin saltar daños
+
+## v1.1 — Concordancia reproducible y conservadora
+
+El índice local de SumTablets ya no compara fragmentos **a través de saltos de línea,
+marcadores de caras o signos desconocidos/dañados** (`?`, `<D>`, `[…]`). Las
+secuencias Unicode deben ser consecutivas dentro de un mismo tramo legible.
+Se conservan espacios sencillos entre signos, que son separadores de presentación.
+
+Cada candidato de **«Comparar fragmentos OCR»** ahora muestra su
+**mayor secuencia Unicode exactamente compartida**, cuántos signos contiene,
+y en qué tramos de la consulta y del documento aparece. El motor usa un
+**autómata de sufijos** para identificar esa secuencia sin recorrer todas
+las parejas de posiciones. El ranking prioriza el tramo más largo y luego
+el número de grupos compartidos; es una clasificación por coincidencias,
+no una probabilidad ni una certeza filológica.
+
+**Lo que NO hacemos:** atribuir sílabas o palabras concretas a cada signo
+mediante una alineación inventada. La columna `transliteration` sigue siendo
+el texto **completo y documentado** del corpus: no se presenta como si
+tradujera únicamente el fragmento Unicode coincidente. Los resultados pueden
+pertenecer a otras tablillas y necesitan comparación humana con la foto.
+
+**Validación:** pruebas de regresión con saltos de línea, signos dañados,
+Unicode repetido, consulta HTTP y flujo OCR simulado. No implica que
+NabuOCR haya sido ejecutado con pesos reales o que exista una traducción al
+español validada.
+
+---
+
 # CuneiLab v1.0 — OCR local y concordancia con fuentes documentadas
 
 ## v1.0 — De signos OCR a concordancias documentadas

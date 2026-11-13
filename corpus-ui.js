@@ -42,6 +42,7 @@
           ${item.cdli_url ? `<a class="cdli-link" href="${escapeHtml(item.cdli_url)}" target="_blank" rel="noopener noreferrer">Abrir ficha de CDLI ↗</a>` : ''}
           <p class="corpus-meta">${escapeHtml(item.period || 'Período sin indicar')} · ${escapeHtml(item.genre || 'Género sin indicar')}</p>
           ${similar ? `<p class="corpus-meta"><b>Solapamiento textual:</b> ${item.shared_ngrams}/${item.query_ngrams} grupos de ${item.ngram_width} signos compartidos. No es probabilidad ni confianza del OCR.</p>` : ''}
+          ${similar && item.evidence ? `<div class="corpus-reading"><b>Secuencia exacta documentada (${Number(item.evidence.sign_count)} signos):</b> <span class="cunei-small">${escapeHtml(item.evidence.unicode)}</span><p class="tiny">Fragmento ${Number(item.evidence.query_segment)} de la consulta · fragmento ${Number(item.evidence.source_segment)} del documento. Es evidencia Unicode; no se infiere una alineación fonética con la transliteración.</p></div>` : ''}
           <div class="corpus-reading"><b>Signos:</b> <span class="cunei-small">${escapeHtml(brief(item.glyphs, 220))}</span></div>
           <div class="corpus-reading"><b>Transliteración documentada:</b> <code>${escapeHtml(brief(item.transliteration, 600))}</code></div>
           ${item.context?.match ? `<div class="corpus-kwic"><b>Contexto:</b> ${escapeHtml(item.context.before)}<mark>${escapeHtml(item.context.match)}</mark>${escapeHtml(item.context.after)}</div>` : ''}

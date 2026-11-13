@@ -23,6 +23,7 @@ function harness() {
       id:'P000001',period:'Ur III',genre:'Literary',glyphs:'𒀭𒈗𒆠𒂍',
       transliteration:'an lugal ki e2',match_type:'fragmentos documentados',
       shared_ngrams:1,query_ngrams:1,ngram_width:4,
+      evidence:{unicode:'𒀭𒈗𒆠𒂍',sign_count:4,query_segment:1,source_segment:1,query_sign_offset:0,source_sign_offset:0},
       cdli_url:'https://cdli.earth/artifacts/000001'}]})};
     throw Error('Unexpected URL '+url);
   };
@@ -40,6 +41,8 @@ test('matching OCR glyphs uses documented corpus endpoint and cites overlap with
   assert.match(html,/1\/1 grupos de 4 signos compartidos/);
   assert.match(html,/No es probabilidad ni confianza del OCR/);
   assert.match(html,/an lugal ki e2/);
+  assert.match(html,/Secuencia exacta documentada \(4 signos\)/);
+  assert.match(html,/no se infiere una alineación fonética/);
 });
 
 test('accepting OCR dispatch triggers corpus comparison automatically',async()=>{

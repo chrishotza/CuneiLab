@@ -197,14 +197,92 @@ def search(query: str, field: str = 'transliteration', *, db_path: Path | str = 
 
 
 def _sign_segments(text: str) -> list[str]:
-    """Pure sign sequences separated by explicit tablet-face markers.
+    """Conservative exact-sign runs; never bridge faces, lines or damage.
 
-    A run of Unicode signs is *not* a transliteration. Discard textual OCR
-    artifacts; never join obverse with reverse to invent an attested n-gram.
+    Only ordinary spaces/tabs are ignored between known Unicode signs. Line
+    breaks and any non-sign non-space symbol (e.g. ?, <D>, […]) terminate the
+    run. This prevents a physically nonexistent 4-sign match from being
+    assembled by stripping a damaged or illegible passage.
     """
     from transcription import FACE_MARKER, is_sign
-    return [signs for part in FACE_MARKER.split(text)
-            if (signs := ''.join(char for char in part if is_sign(char)))]
+    runs = []
+    for part in FACE_MARKER.split(text):
+        for line in part.splitlines():
+            current = []
+            for ch in line:
+                if is_sign(ch):
+                    current.append(ch)
+                elif ch in (' ', '\t', '\u00a0'):
+                    continue
+                else:
+                    if current:
+                        runs.append(''.join(current))
+                        current = []
+            if current:
+                runs.append(''.join(current))
+    return runs
+
+
+def _build_sign_automaton(signs: str) -> list[dict]:
+    """Suffix automaton for longest shared contiguous sequence, O(n) build."""
+    states = [{'next': {}, 'link': -1, 'length': 0, 'end': -1}]
+    last = 0
+    for pos, char in enumerate(signs):
+        cur = len(states)
+        states.append({'next': {}, 'link': 0, 'length': states[last]['length'] + 1, 'end': pos})
+        node = last
+        while node != -1 and char not in states[node]['next']:
+            states[node]['next'][char] = cur
+            node = states[node]['link']
+        if node != -1:
+            other = states[node]['next'][char]
+            if states[node]['length'] + 1 == states[other]['length']:
+                states[cur]['link'] = other
+            else:
+                clone = len(states)
+                states.append({'next': states[other]['next'].copy(),
+                               'link': states[other]['link'],
+                               'length': states[node]['length'] + 1,
+                               'end': states[other]['end']})
+                while node != -1 and states[node]['next'].get(char) == other:
+                    states[node]['next'][char] = clone
+                    node = states[node]['link']
+                states[other]['link'] = clone
+                states[cur]['link'] = clone
+        last = cur
+    return states
+
+
+def _evidence(automata: list[tuple[str, list[dict]]], source_segments: list[str]) -> dict | None:
+    """An exact glyph run, with locations in sign-only runs (not phonetic alignment).
+
+    Scan is linear in the number of signs per source segment for each query
+    segment. It does not guess how glyphs align to ATF words or syllables.
+    """
+    best = None
+    for query_idx, (query_signs, states) in enumerate(automata):
+        for source_idx, source_signs in enumerate(source_segments):
+            node = match_len = 0
+            for source_end, char in enumerate(source_signs):
+                while node and char not in states[node]['next']:
+                    node = states[node]['link']
+                    match_len = min(match_len, states[node]['length'])
+                if char in states[node]['next']:
+                    node = states[node]['next'][char]
+                    match_len += 1
+                else:
+                    node = match_len = 0
+                if match_len and (best is None or match_len > best['sign_count']):
+                    query_start = states[node]['end'] - match_len + 1
+                    best = {
+                        'unicode': source_signs[source_end - match_len + 1:source_end + 1],
+                        'sign_count': match_len,
+                        'query_segment': query_idx + 1,
+                        'source_segment': source_idx + 1,
+                        'query_sign_offset': query_start,
+                        'source_sign_offset': source_end - match_len + 1,
+                    }
+    return best
 
 
 def _ngrams(segments: list[str], width: int) -> set[str]:
@@ -247,6 +325,7 @@ def similar_signs(text: str, *, db_path: Path | str = DEFAULT_DB,
 
     # Four-sign anchors reduce incidental matches; for 3-sign fragments we
     # must use trigrams. Fall back to trigrams if no 4-sign anchor is attested.
+    automata = [(segment, _build_sign_automaton(segment)) for segment in segments]
     with _connect(path) as connection:
         for width in (4, 3):
             grams = _ngrams(segments, width)
@@ -263,18 +342,24 @@ def similar_signs(text: str, *, db_path: Path | str = DEFAULT_DB,
                     candidates[row['id']] = dict(row)
             results = []
             for row in candidates.values():
-                row_grams = _ngrams(_sign_segments(row['glyphs']), width)
+                source_segments = _sign_segments(row['glyphs'])
+                row_grams = _ngrams(source_segments, width)
                 common = grams & row_grams
                 if not common:
                     continue
                 matches = len(common)
-                # Result fields express textual overlap, not model certainty.
+                evidence = _evidence(automata, source_segments)
+                if not evidence or evidence['sign_count'] < width:
+                    continue
+                # Evidence is an exact contiguous Unicode span only: no ATF alignment.
                 results.append({**row, 'cdli_url': cdli_url(row['id']),
+                                'evidence': evidence,
                                 'shared_ngrams': matches, 'query_ngrams': len(grams),
                                 'ngram_width': width, 'overlap_fraction': round(matches/len(grams), 4),
                                 'match_type': 'fragmentos documentados'})
             if results:
-                results.sort(key=lambda row: (-row['overlap_fraction'], -row['shared_ngrams'],
+                results.sort(key=lambda row: (-row['evidence']['sign_count'],
+                                              -row['overlap_fraction'], -row['shared_ngrams'],
                                               len(row['glyphs']), row['id']))
                 return {'ready': True, 'results': results[:limit], 'query_signs': n_signs,
                         'ngram_width': width,

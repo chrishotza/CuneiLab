@@ -48,6 +48,42 @@ class SimilarSignsTests(unittest.TestCase):
         self.assertEqual(hit['cdli_url'], 'https://cdli.earth/artifacts/000001')
         self.assertNotIn('confidence', hit)
 
+    def test_exact_evidence_source_and_query_offsets(self):
+        result = similar_signs('𒌋𒀭𒈗𒆠𒂍', db_path=self.db, period='Ur III')
+        hit = result['results'][0]
+        self.assertEqual(hit['id'], 'P000001')
+        self.assertEqual(hit['evidence']['unicode'], '𒀭𒈗𒆠𒂍')
+        self.assertEqual(hit['evidence']['sign_count'], 4)
+        self.assertEqual(hit['evidence']['query_sign_offset'], 1)
+        self.assertEqual(hit['evidence']['source_sign_offset'], 0)
+        self.assertNotIn('confidence', hit['evidence'])
+
+    def test_newlines_unknown_and_damage_prevent_false_ngrams(self):
+        from corpus import _sign_segments
+        for text in ('𒀭𒈗?𒆠𒂍', '𒀭𒈗<D>𒆠𒂍', '𒀭𒈗\n𒆠𒂍',
+                     '𒀭𒈗[…]𒆠𒂍', '𒀭𒈗@reverse𒆠𒂍'):
+            self.assertEqual(_sign_segments(text), ['𒀭𒈗','𒆠𒂍'], msg=text)
+            result=similar_signs(text, db_path=self.db)
+            self.assertEqual(result['results'], [], msg=text)
+        self.assertEqual(_sign_segments('𒀭 𒈗\t𒆠 𒂍'), ['𒀭𒈗𒆠𒂍'])
+
+    def test_source_damage_does_not_bridge_evidence(self):
+        from corpus import _sign_segments, _evidence, _build_sign_automaton
+        source = _sign_segments('𒀭𒈗<D>𒆠𒂍')
+        query = '𒀭𒈗𒆠𒂍'
+        proof = _evidence([(query,_build_sign_automaton(query))], source)
+        self.assertEqual(proof['sign_count'], 2)
+        self.assertNotEqual(proof['unicode'], query)
+
+    def test_longest_common_run_for_repeated_signs(self):
+        from corpus import _build_sign_automaton, _evidence
+        q='𒀭𒀭𒀭𒀭𒈗𒆠'
+        source='𒀭𒀭𒀭𒈗𒆠𒂍'
+        proof=_evidence([(q,_build_sign_automaton(q))], [source])
+        self.assertEqual(proof['unicode'], '𒀭𒀭𒀭𒈗𒆠')
+        self.assertEqual(proof['sign_count'], 5)
+        self.assertEqual(proof['query_sign_offset'], 1)
+
     def test_3_sign_fallback_and_rank(self):
         rows = similar_signs('𒀭 𒈗 𒆠', db_path=self.db)['results']
         self.assertEqual({r['id'] for r in rows}, {'P000001', 'P000003'})
