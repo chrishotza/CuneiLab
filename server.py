@@ -9,7 +9,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit, unquote
 
-from corpus import DEFAULT_DB, search, status, facets
+from corpus import DEFAULT_DB, search, status, facets, similar_signs
 from local_ocr import OCRConfig, MAX_IMAGE_BYTES, image_extension, safe_filename, run_local_ocr
 
 ROOT = Path(__file__).resolve().parent
@@ -62,6 +62,15 @@ def make_handler(db_path: Path = DEFAULT_DB, *, ocr_config: OCRConfig | None = N
                 return self._json(200, status(db_path))
             if parsed.path == '/api/facets':
                 return self._json(200, facets(db_path))
+            if parsed.path == '/api/similar':
+                try:
+                    args = parse_qs(parsed.query, keep_blank_values=True, max_num_fields=5)
+                    result = similar_signs(args.get('glyphs', [''])[0], db_path=db_path,
+                                           period=args.get('period', [''])[0],
+                                           genre=args.get('genre', [''])[0])
+                    return self._json(200, result)
+                except ValueError as e:
+                    return self._json(400, {'error': str(e)})
             if parsed.path == '/api/search':
                 try:
                     args = parse_qs(parsed.query, keep_blank_values=True, max_num_fields=8)

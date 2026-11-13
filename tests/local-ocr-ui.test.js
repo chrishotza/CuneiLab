@@ -30,10 +30,11 @@ function instance({switchImage=false,enabled=true}={}) {
     }
     throw Error(`Unexpected URL: ${url}`);
   }
-  const sandbox={document:{getElementById:element},window:{CuneiTranscription:library,CuneiLabPhotoForOCR:()=>({...photo})},
+  const dispatched=[];
+  const sandbox={document:{getElementById:element,dispatchEvent(event){dispatched.push(event.type);}},window:{CuneiTranscription:library,CuneiLabPhotoForOCR:()=>({...photo})},
     location:{protocol:'http:'},fetch:fakeFetch,Blob,Event:class Event{constructor(type){this.type=type;}},console};
   vm.runInNewContext(script,sandbox);
-  return {element,photo,uploads:()=>uploads};
+  return {element,photo,uploads:()=>uploads,dispatched};
 }
 async function flush(){await new Promise(resolve=>setImmediate(resolve));}
 
@@ -53,6 +54,7 @@ test('user click requests local OCR and requires explicit approval to copy',asyn
   assert.equal(c.element('nabuApply').disabled,false);
   c.element('nabuApply').listeners.click();
   assert.equal(c.element('unicodeInput').value,glyphs);
+  assert.deepEqual(c.dispatched,['cuneilab:unicode-accepted']);
 });
 
 test('cannot copy result after changing photo',async()=>{

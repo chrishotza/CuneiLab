@@ -194,3 +194,90 @@ def search(query: str, field: str = 'transliteration', *, db_path: Path | str = 
             row['context'] = make_context(row['transliteration'], clean)
     return {'ready': True, 'query': query, 'field': field, 'period': period, 'genre': genre, 'results': rows,
             'message': 'Coincidencias documentadas, no traducciones automáticas.'}
+
+
+def _sign_segments(text: str) -> list[str]:
+    """Pure sign sequences separated by explicit tablet-face markers.
+
+    A run of Unicode signs is *not* a transliteration. Discard textual OCR
+    artifacts; never join obverse with reverse to invent an attested n-gram.
+    """
+    from transcription import FACE_MARKER, is_sign
+    return [signs for part in FACE_MARKER.split(text)
+            if (signs := ''.join(char for char in part if is_sign(char)))]
+
+
+def _ngrams(segments: list[str], width: int) -> set[str]:
+    return {segment[pos:pos + width]
+            for segment in segments if len(segment) >= width
+            for pos in range(len(segment) - width + 1)}
+
+
+def _anchors(grams: set[str], limit: int = 12) -> list[str]:
+    """Deterministic spread over all anchors, not just the first line."""
+    ordered = sorted(grams)
+    if len(ordered) <= limit:
+        return ordered
+    return [ordered[(idx * (len(ordered) - 1)) // (limit - 1)] for idx in range(limit)]
+
+
+def similar_signs(text: str, *, db_path: Path | str = DEFAULT_DB,
+                  limit: int = 8, period: str = '', genre: str = '') -> dict:
+    """Retrieve attested *candidate* records sharing consecutive Unicode signs.
+
+    The coverage fraction is NOT a confidence, probability, transliteration,
+    translation or scientific accuracy metric. Only rows in the imported
+    SQLite retrieval index are considered (normally SumTablets train).
+    """
+    if not isinstance(text, str) or len(text) > 4000:
+        raise ValueError('Consulta de signos demasiado larga (máximo 4000 caracteres)')
+    if type(limit) is not int or not 1 <= limit <= 15:
+        raise ValueError('Límite fuera del rango 1–15')
+    if not isinstance(period, str) or len(period) > 100 or not isinstance(genre, str) or len(genre) > 100:
+        raise ValueError('Filtro inválido')
+    segments = _sign_segments(text)
+    n_signs = sum(len(s) for s in segments)
+    if n_signs < 3:
+        raise ValueError('Se necesitan al menos 3 signos cuneiformes consecutivos')
+    if n_signs > 700:
+        raise ValueError('Elegí un fragmento de hasta 700 signos para comparar')
+    path = Path(db_path)
+    if not status(path)['ready']:
+        return {'ready': False, 'results': [], 'message': 'Primero importá SumTablets train.csv.'}
+
+    # Four-sign anchors reduce incidental matches; for 3-sign fragments we
+    # must use trigrams. Fall back to trigrams if no 4-sign anchor is attested.
+    with _connect(path) as connection:
+        for width in (4, 3):
+            grams = _ngrams(segments, width)
+            if not grams:
+                continue
+            candidates: dict[str, dict] = {}
+            for anchor in _anchors(grams):
+                sql = '''SELECT id, period, genre, glyphs, transliteration, source
+                         FROM tablets WHERE glyph_norm LIKE ? ESCAPE '\\'
+                         AND (? = '' OR period = ?) AND (? = '' OR genre = ?)
+                         ORDER BY LENGTH(glyph_norm), id LIMIT 90'''
+                for row in connection.execute(sql, ('%' + _escape_like(anchor) + '%',
+                                                     period, period, genre, genre)):
+                    candidates[row['id']] = dict(row)
+            results = []
+            for row in candidates.values():
+                row_grams = _ngrams(_sign_segments(row['glyphs']), width)
+                common = grams & row_grams
+                if not common:
+                    continue
+                matches = len(common)
+                # Result fields express textual overlap, not model certainty.
+                results.append({**row, 'cdli_url': cdli_url(row['id']),
+                                'shared_ngrams': matches, 'query_ngrams': len(grams),
+                                'ngram_width': width, 'overlap_fraction': round(matches/len(grams), 4),
+                                'match_type': 'fragmentos documentados'})
+            if results:
+                results.sort(key=lambda row: (-row['overlap_fraction'], -row['shared_ngrams'],
+                                              len(row['glyphs']), row['id']))
+                return {'ready': True, 'results': results[:limit], 'query_signs': n_signs,
+                        'ngram_width': width,
+                        'message': 'Coincidencias de secuencias; NO son lecturas automáticas ni probabilidades.'}
+    return {'ready': True, 'results': [], 'query_signs': n_signs,
+            'message': 'No se encontraron fragmentos compartidos en el corpus indexado.'}

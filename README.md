@@ -1,4 +1,25 @@
-# CuneiLab v0.9 — OCR local desde navegador y revisión de signos
+# CuneiLab v1.0 — OCR local y concordancia con fuentes documentadas
+
+## v1.0 — De signos OCR a concordancias documentadas
+
+**Nuevo:** al aceptar una transcripción Unicode (incluida la salida de NabuOCR) el programa consulta automáticamente `/api/similar` para encontrar **fragmentos de 3 o 4 signos consecutivos** presentes en el índice local de SumTablets. También se puede usar el botón **«Comparar fragmentos OCR»** para hacerlo manualmente. Se muestran los identificadores P/Q, la transliteración que consta en el registro y el número de grupos de signos compartidos. El botón «Usar transliteración como referencia» exige una acción explícita.
+
+**Advertencia:** un fragmento compartido no significa que se trate de la misma tablilla, ni que sea una lectura fonética inequívoca. El solapamiento textual **no es probabilidad, confianza del modelo, traducción al español ni precisión de OCR**. El buscador solo mira los registros realmente importados (recomendamos `train.csv`; no mezclar `validation` o `test`). Ante una lectura ambigua o dañada, hay que contrastar con la foto y fuentes especializadas. Para mejorar la búsqueda, elegí una secuencia de 4 o más signos revisados de la misma cara.
+
+La concordancia no descarga datos, ni llama a un LLM ni modifica la transcripción existente. Requiere haber importado el corpus y haber arrancado `iniciar_cuneilab.bat`; no está disponible al abrir `index.html` directamente.
+
+### Diagnóstico del entorno NabuOCR
+
+Antes de activar inferencia pesada, podés revisar **sin red, pesos ni código remoto** si están instaladas las dependencias en el Python elegido:
+
+```powershell
+py -3 scripts/doctor_nabu.py --python .venv-nabu\Scripts\python.exe
+```
+
+El comando informa versiones instaladas y módulos ausentes. No asegura que el checkpoint sea compatible, esté descargado o produzca lecturas correctas. Para verificar compatibilidad real sigue siendo indispensable ejecutar una inferencia con pesos inspeccionados y foto real y medirla contra un texto de referencia independiente.
+
+
+---
 
 ## v0.9 — Ejecutar OCR local desde el navegador (opt-in)
 

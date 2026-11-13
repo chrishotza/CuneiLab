@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CuneiLab — Taller de lectura cuneiforme v0.5</title>
+  <title>CuneiLab — Taller de lectura cuneiforme v1.0</title>
   <meta name="description" content="Espacio de trabajo para estudiar fotografías, signos y transliteraciones cuneiformes. Funciona sin conexión.">
   <link rel="stylesheet" href="styles.css">
   <script defer src="catalog.js"></script>
@@ -27,7 +27,7 @@
 
     <main>
       <section class="intro">
-        <div><div class="eyebrow">EDICIÓN EXPERIMENTAL · v0.9</div><h1>Leer el pasado,<br><em>signo por signo.</em></h1><p>Explorá tablillas, anotá la escritura y analizá una transliteración en un solo espacio de trabajo.</p></div>
+        <div><div class="eyebrow">EDICIÓN EXPERIMENTAL · v1.0</div><h1>Leer el pasado,<br><em>signo por signo.</em></h1><p>Explorá tablillas, anotá la escritura y analizá una transliteración en un solo espacio de trabajo.</p></div>
         <div class="intro-aside"><div class="rune-pattern" aria-hidden="true">𒀭 𒈗 𒆠<br>𒂍 𒁾 𒀀</div><div class="metric"><strong id="signCount">1.118</strong><span>signos Unicode para explorar</span></div></div>
       </section>
 
@@ -105,9 +105,9 @@
             <button class="btn btn-accent" id="searchCorpus" type="button">Buscar</button>
           </div>
           <div class="corpus-filters"><label>Período <select id="corpusPeriod"><option value="">Todos los períodos</option></select></label><label>Género <select id="corpusGenre"><option value="">Todos los géneros</option></select></label></div>
-          <div class="corpus-quick"><button class="btn btn-secondary small" type="button" id="copyFromATF">Buscar mi transliteración</button><button class="btn btn-secondary small" type="button" id="copyFromUnicode">Buscar mis signos Unicode</button></div>
+          <div class="corpus-quick"><button class="btn btn-secondary small" type="button" id="copyFromATF">Buscar mi transliteración</button><button class="btn btn-secondary small" type="button" id="copyFromUnicode">Buscar mis signos Unicode</button><button class="btn btn-accent small" type="button" id="matchSimilar">Comparar fragmentos OCR</button></div>
           <div id="corpusResults" class="corpus-results" aria-live="polite"><p class="small-note">El índice se genera localmente a partir de un CSV de SumTablets (solo train). Para activar las búsquedas, seguí las instrucciones del README.</p></div>
-          <p class="tiny">Fuente: <a href="https://huggingface.co/datasets/colesimmons/SumTablets" target="_blank" rel="noopener">SumTablets</a>, licencia CC BY 4.0. Los identificadores, períodos y géneros provienen del corpus importado. Reservá los conjuntos <em>validation</em> y <em>test</em> para evaluación de modelos.</p>
+          <p class="tiny">Fuente: <a href="https://huggingface.co/datasets/colesimmons/SumTablets" target="_blank" rel="noopener">SumTablets</a>, licencia CC BY 4.0. Los identificadores, períodos y géneros provienen del corpus importado. Reservá los conjuntos <em>validation</em> y <em>test</em> para evaluación de modelos. <strong>«Comparar fragmentos OCR» busca grupos consecutivos de signos; no estima la precisión del OCR ni traduce automáticamente.</strong></p>
         </div>
       </section>
 

@@ -76,6 +76,7 @@
     field.dataset.ocrSource=last.source;
     field.dataset.ocrModel=last.model;
     field.dispatchEvent(new Event('input',{bubbles:true}));
+    document.dispatchEvent(new Event('cuneilab:unicode-accepted'));
     $('nabuStatus').textContent='Signos copiados al editor para corrección. No constituyen una transliteración validada.';
     field.scrollIntoView({behavior:'smooth',block:'center'});
   });
