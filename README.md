@@ -11,7 +11,7 @@
 - **v0.3:** filtros por período y género, contexto KWIC de coincidencias, búsqueda por ID P/Q y enlaces de P-numbers a fichas CDLI.
 - **v0.3:** descarga opcional del CSV de entrenamiento verificada por SHA-256, sin descargar datos de evaluación.
 - **Nuevo:** sugerir usar como referencia la transliteración ya documentada de una coincidencia de corpus y someterla al análisis léxico (requiere revisión humana).
-- Servidor HTTP de uso local, con biblioteca estándar de Python 3 (sin librerías externas, cuenta en nube ni claves de IA).
+- Servidor HTTP de uso local, con biblioteca estándar de Python 3 (sin librerías externas, cuenta en nube ni claves de IA). Las solicitudes HTTP validan el encabezado `Host`; tanto `GET` como `HEAD` respetan la lista de archivos públicos.
 
 > **Crítico:** SumTablets no contiene traducciones al español de los 91.606 textos ni fotos listas para OCR. Sus pares son `glyphs` ↔ `transliteration`. Las coincidencias son *retrieval* (búsqueda de ejemplos documentados), **no reconocimiento visual, inferencia neuronal ni traducción automática**. Tampoco la cobertura del glosario es una métrica de precisión filológica.
 
