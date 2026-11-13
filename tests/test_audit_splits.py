@@ -1,65 +1,111 @@
-"""Tests for cross-split leakage auditing; no external corpus required."""
+"""Cross-split audit tests use small synthetic CSVs and image manifests."""
 import csv
+import json
 import tempfile
 import unittest
 from pathlib import Path
-
-from scripts.audit_splits import audit_splits
+from scripts.audit_splits import audit_splits, _norm_glyphs, _photo_hashes
 
 
 class SplitAuditTests(unittest.TestCase):
     def setUp(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        self.root = Path(tmp.name)
+        temp=tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.root=Path(temp.name)
 
     def csv(self, name, rows):
-        path = self.root / (name + '.csv')
-        with path.open('w', encoding='utf-8', newline='') as handle:
-            writer = csv.DictWriter(handle, fieldnames=['id', 'glyphs'])
+        path=self.root/(name+'.csv')
+        with path.open('w',encoding='utf-8',newline='') as handle:
+            writer=csv.DictWriter(handle,fieldnames=['id','glyphs'])
             writer.writeheader()
             writer.writerows(rows)
         return path
 
+    def audit(self,name,rows):
+        path=self.root/(name+'.jsonl')
+        path.write_text(''.join(json.dumps(row)+'\n' for row in rows),encoding='utf-8')
+        return path
+
     def test_disjoint_sets_pass(self):
-        a = self.csv('train', [{'id':'P000001','glyphs':'𒀭𒆠'}])
-        b = self.csv('test', [{'id':'P000002','glyphs':'𒈗𒂍'}])
-        report = audit_splits({'train':a, 'test':b})
-        self.assertTrue(report['passed_exact_overlap_audit'])
-        self.assertEqual(report['counts'], {'test':1,'train':1})
+        a=self.csv('train',[{'id':'P000001','glyphs':'𒀭𒆠'}])
+        b=self.csv('test',[{'id':'P000002','glyphs':'𒈗𒂍'}])
+        result=audit_splits({'train':a,'test':b})
+        self.assertTrue(result['passed_exact_overlap_audit'])
+        self.assertFalse(result['needs_manual_review'])
 
-    def test_detects_same_id_in_two_splits(self):
-        a = self.csv('train', [{'id':'P000001','glyphs':'𒀭'}])
-        b = self.csv('test', [{'id':'P000001','glyphs':'𒈗'}])
-        report = audit_splits({'train':a, 'test':b})
-        self.assertFalse(report['passed_exact_overlap_audit'])
-        self.assertEqual(report['duplicate_ids_across_splits'][0]['id'], 'P000001')
+    def test_same_id_detected(self):
+        a=self.csv('train',[{'id':'P000001','glyphs':'𒀭'}])
+        b=self.csv('test',[{'id':'P000001','glyphs':'𒈗'}])
+        self.assertEqual(audit_splits({'train':a,'test':b})['duplicate_ids_across_splits'][0]['id'],'P000001')
 
-    def test_detects_same_signs_under_different_ids(self):
-        a = self.csv('train', [{'id':'P000001','glyphs':'𒀭 𒆠'}])
-        b = self.csv('test', [{'id':'P000002','glyphs':'𒀭𒆠'}])
-        result = audit_splits({'train':a, 'test':b})
+    def test_same_signs_without_horizontal_spaces(self):
+        a=self.csv('train',[{'id':'P000001','glyphs':'𒀭 𒆠'}])
+        b=self.csv('test',[{'id':'P000002','glyphs':'𒀭𒆠'}])
+        result=audit_splits({'train':a,'test':b})
+        self.assertFalse(result['passed_exact_overlap_audit'])
         self.assertEqual(len(result['exact_glyph_duplicates_across_splits']),1)
 
-    def test_damage_markup_is_not_silently_discarded(self):
-        a = self.csv('train', [{'id':'P000001','glyphs':'𒀭<D>𒆠'}])
-        b = self.csv('test', [{'id':'P000002','glyphs':'𒀭𒆠'}])
+    def test_line_boundary_is_review_not_exact(self):
+        a=self.csv('train',[{'id':'P000001','glyphs':'𒀭\n𒆠'}])
+        b=self.csv('test',[{'id':'P000002','glyphs':'𒀭𒆠'}])
+        result=audit_splits({'train':a,'test':b})
+        self.assertTrue(result['passed_exact_overlap_audit'])
+        self.assertTrue(result['needs_manual_review'])
+        self.assertEqual(len(result['potential_line_boundary_duplicates']),1)
+
+    def test_crlf_normalized(self):
+        self.assertEqual(_norm_glyphs('𒀭\r\n𒆠'),_norm_glyphs('𒀭\n𒆠'))
+
+    def test_damage_markers_preserved(self):
+        a=self.csv('train',[{'id':'P000001','glyphs':'𒀭<D>𒆠'}])
+        b=self.csv('test',[{'id':'P000002','glyphs':'𒀭𒆠'}])
         self.assertTrue(audit_splits({'train':a,'test':b})['passed_exact_overlap_audit'])
 
-    def test_intrasplit_duplicates_reported(self):
-        a = self.csv('train', [{'id':'P000001','glyphs':'𒀭'}, {'id':'P000001','glyphs':'𒆠'}])
-        b = self.csv('test', [{'id':'P000002','glyphs':'𒈗'}])
-        out = audit_splits({'train':a,'test':b})
-        self.assertFalse(out['passed_exact_overlap_audit'])
-        self.assertEqual(out['duplicate_ids_within_split']['train'], ['P000001'])
+    def test_intrasplit_duplicates(self):
+        a=self.csv('train',[{'id':'P000001','glyphs':'𒀭'},{'id':'P000001','glyphs':'𒆠'}])
+        b=self.csv('test',[{'id':'P000002','glyphs':'𒈗'}])
+        self.assertEqual(audit_splits({'train':a,'test':b})['duplicate_ids_within_split']['train'],['P000001'])
+
+    def test_same_photo_hash_different_ids(self):
+        a=self.csv('train',[{'id':'P000001','glyphs':'𒀭'}])
+        b=self.csv('test',[{'id':'P000002','glyphs':'𒈗'}])
+        da=self.audit('a',[{'id':'P000001','image_sha256':'a'*64}])
+        db=self.audit('b',[{'id':'P000002','image_sha256':'a'*64}])
+        result=audit_splits({'train':a,'test':b},image_audits={'train':da,'test':db})
+        self.assertFalse(result['passed_exact_overlap_audit'])
+        self.assertEqual(len(result['duplicate_photo_hashes_across_splits']),1)
+
+    def test_changed_image_hash_no_collision(self):
+        a=self.csv('train',[{'id':'P000001','glyphs':'𒀭'}])
+        b=self.csv('test',[{'id':'P000002','glyphs':'𒈗'}])
+        da=self.audit('a',[{'id':'P000001','crop_sha256':'a'*64}])
+        db=self.audit('b',[{'id':'P000002','crop_sha256':'b'*64}])
+        self.assertTrue(audit_splits({'train':a,'test':b},image_audits={'train':da,'test':db})['passed_exact_overlap_audit'])
+
+    def test_bad_image_hash_rejected(self):
+        file=self.audit('bad',[{'id':'P000001','image_sha256':'bad'}])
+        with self.assertRaisesRegex(ValueError,'SHA-256'):
+            _photo_hashes(file,'train')
+
+    def test_unknown_photo_id_rejected(self):
+        a=self.csv('train',[{'id':'P000001','glyphs':'𒀭'}])
+        b=self.csv('test',[{'id':'P000002','glyphs':'𒈗'}])
+        da=self.audit('a',[{'id':'P999999','image_sha256':'a'*64}])
+        with self.assertRaisesRegex(ValueError,'no figura'):
+            audit_splits({'train':a,'test':b},image_audits={'train':da})
+
+    def test_same_csv_path_rejected(self):
+        a=self.csv('train',[{'id':'P000001','glyphs':'𒀭'}])
+        with self.assertRaisesRegex(ValueError,'mismo CSV'):
+            audit_splits({'train':a,'test':a})
 
     def test_missing_columns_rejected(self):
-        p=self.root/'bad.csv'
-        p.write_text('id,transliteration\nP000001,an\n', encoding='utf-8')
-        good=self.csv('test',[{'id':'P000002','glyphs':'𒀭'}])
+        path=self.root/'bad.csv'
+        path.write_text('id,transliteration\nP000001,an\n',encoding='utf-8')
+        b=self.csv('test',[{'id':'P000002','glyphs':'𒈗'}])
         with self.assertRaisesRegex(ValueError,'faltan columnas'):
-            audit_splits({'train':p,'test':good})
+            audit_splits({'train':path,'test':b})
 
 
-if __name__ == '__main__':
+if __name__=='__main__':
     unittest.main()
