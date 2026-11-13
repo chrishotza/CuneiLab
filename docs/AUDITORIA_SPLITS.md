@@ -17,3 +17,7 @@ El reporte distingue tres clases de señales:
 El archivo JSON incluye `passed_exact_overlap_audit` y `needs_manual_review`. No confundas estos campos con confianza neuronal ni calidad filológica. En particular, NabuOCR pudo haber usado imágenes CDLI aunque tus conjuntos locales sean diferentes; verificar esa independencia exige conocer sus fuentes de entrenamiento. La misma fotografía reescalada o recortada puede tener otro SHA-256; dos fotos de una misma tablilla también pueden ser distintas.
 
 La auditoría se limita a evidencia aportada localmente. Conserva los marcadores de daño, no adivina caras ni modifica los CSV.
+
+## Control de originales y recortes
+
+Si el manifiesto contiene `source_sha256` (o `image_sha256`) junto con `crop_sha256`, la auditoría revisa **ambas** huellas por separado. Esto detecta una fotografía original reutilizada con dos recortes distintos y también un mismo recorte repetido. No se compara erróneamente el hash de un recorte contra el de una fotografía completa. Los registros solo con `crop_sha256` siguen siendo admitidos, pero **no permiten descartar** que los recortes procedan de una misma imagen original. Para comprobar esa procedencia, conservá siempre el SHA-256 original durante la preparación de datos.
