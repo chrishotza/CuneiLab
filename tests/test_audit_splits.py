@@ -82,6 +82,37 @@ class SplitAuditTests(unittest.TestCase):
         db=self.audit('b',[{'id':'P000002','crop_sha256':'b'*64}])
         self.assertTrue(audit_splits({'train':a,'test':b},image_audits={'train':da,'test':db})['passed_exact_overlap_audit'])
 
+    def test_same_original_photo_with_different_crops_is_collision(self):
+        train=self.csv('train',[{'id':'P000001','glyphs':'𒀭𒆠'}])
+        test=self.csv('test',[{'id':'P000002','glyphs':'𒈗𒂍'}])
+        left=self.audit('left',[{'id':'P000001','source_sha256':'a'*64,'crop_sha256':'b'*64}])
+        right=self.audit('right',[{'id':'P000002','source_sha256':'a'*64,'crop_sha256':'c'*64}])
+        result=audit_splits({'train':train,'test':test},image_audits={'train':left,'test':right})
+        self.assertFalse(result['passed_exact_overlap_audit'])
+        self.assertEqual([item['image_kind'] for item in result['duplicate_photo_hashes_across_splits']],['original'])
+
+    def test_crop_hashes_checked_even_if_original_hash_exists(self):
+        train=self.csv('train',[{'id':'P000001','glyphs':'𒀭𒆠'}])
+        test=self.csv('test',[{'id':'P000002','glyphs':'𒈗𒂍'}])
+        left=self.audit('left',[{'id':'P000001','source_sha256':'a'*64,'crop_sha256':'c'*64}])
+        right=self.audit('right',[{'id':'P000002','source_sha256':'b'*64,'crop_sha256':'c'*64}])
+        result=audit_splits({'train':train,'test':test},image_audits={'train':left,'test':right})
+        self.assertEqual([item['image_kind'] for item in result['duplicate_photo_hashes_across_splits']],['crop'])
+
+    def test_original_and_crop_not_compared_across_kinds(self):
+        train=self.csv('train',[{'id':'P000001','glyphs':'𒀭𒆠'}])
+        test=self.csv('test',[{'id':'P000002','glyphs':'𒈗𒂍'}])
+        left=self.audit('left',[{'id':'P000001','source_sha256':'a'*64}])
+        right=self.audit('right',[{'id':'P000002','crop_sha256':'a'*64}])
+        result=audit_splits({'train':train,'test':test},image_audits={'train':left,'test':right})
+        self.assertTrue(result['passed_exact_overlap_audit'])
+
+    def test_conflicting_original_hashes_for_same_id_rejected(self):
+        path=self.audit('bad',[{'id':'P000001','source_sha256':'a'*64},
+                               {'id':'P000001','source_sha256':'b'*64}])
+        with self.assertRaisesRegex(ValueError,'contradictorios'):
+            _photo_hashes(path,'train')
+
     def test_bad_image_hash_rejected(self):
         file=self.audit('bad',[{'id':'P000001','image_sha256':'bad'}])
         with self.assertRaisesRegex(ValueError,'SHA-256'):
