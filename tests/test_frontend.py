@@ -38,6 +38,18 @@ class UiTests(unittest.TestCase):
         server=(ROOT/'server.py').read_text(encoding='utf-8')
         self.assertIn("'/vision.js'",server)
 
+    def test_nabu_controls_and_scripts(self):
+        html=(ROOT/'index.html').read_text(encoding='utf-8')
+        ids=IdParser(); ids.feed(html)
+        required={'nabuImport','nabuApply','nabuPreview','nabuStatus','imageStage','unicodeInput'}
+        self.assertTrue(required.issubset(ids.ids),required-ids.ids)
+        for script_name in ('transcription.js','transcription-ui.js'):
+            self.assertIn(f'src="{script_name}"',html)
+            self.assertIn(f"'/{script_name}'",(ROOT/'server.py').read_text(encoding='utf-8'))
+        ui=(ROOT/'transcription-ui.js').read_text(encoding='utf-8')
+        used=set(re.findall(r"\$\('([\w-]+)'\)",ui))
+        self.assertTrue(used.issubset(ids.ids),used-ids.ids)
+
     def test_corpus_ui_script_loaded(self):
         html = (ROOT/'index.html').read_text(encoding='utf-8')
         self.assertIn('src="corpus-ui.js"', html)

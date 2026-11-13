@@ -1,6 +1,43 @@
-# CuneiLab v0.4 — editor de tablillas y puente de detección cuneiforme
+# CuneiLab v0.5 — editor de tablillas y puente de detección cuneiforme
 
 **Estado:** estación de trabajo experimental que funciona offline para anotación, glosario y lectura documentada de corpus. **NO traduce automáticamente fotografías ni incluye un modelo neuronal preinstalado.**
+
+
+## v0.5 — OCR de fotografía a Unicode con NabuOCR (opcional)
+
+La versión 0.5 integra **[NabuOCR](https://huggingface.co/boatbomber/NabuOCR)**, un modelo ya entrenado basado en PaddleOCR-VL, que produce **signos Unicode** desde una foto de tablilla. A diferencia del motor eBL, genera **texto sin coordenadas por signo**. No traduce a español ni garantiza lecturas filológicamente correctas.
+
+**Dependencias opcionales y descarga grande:** el modelo ocupa aproximadamente **2,05 GB** y puede requerir bastante memoria; se recomienda una GPU compatible. No está incluido en el ZIP ni se descarga cuando se abre el programa. El código del modelo es de terceros; requiere `--trust-remote-code`, que solo debe usarse tras inspeccionarlo y fijar una revisión (`--revision`).
+
+1. Instalá las dependencias en un entorno virtual separado del servidor CuneiLab (consulta las versiones compatibles en el repositorio del modelo):
+
+   ```powershell
+   py -3 -m venv .venv-nabu
+   .venv-nabu\Scripts\python -m pip install --upgrade pip
+   .venv-nabu\Scripts\python -m pip install torch torchvision pillow "transformers>=4.57,<5" accelerate safetensors
+   ```
+
+2. Revisá el código remoto de NabuOCR y obtené una revisión Git concreta de Hugging Face (sin utilizar una referencia móvil en usos científicos). Ejecutá:
+
+   ```powershell
+   .venv-nabu\Scripts\python scripts/run_nabu_ocr.py --image data/tablet.jpg --output data/ocr/tablet.json --device auto --revision TU_SHA_VERIFICADO --trust-remote-code
+   ```
+
+   El programa usa el mismo prompt `OCR:` y la clase `AutoModelForCausalLM` que el [cuaderno de evaluación publicado por NabuOCR](https://huggingface.co/boatbomber/NabuOCR/blob/main/training/cuneiform_ocr_eval.ipynb). El script aborta si el resultado no contiene signos cuneiformes; no inventa una transcripción.
+
+3. Iniciá CuneiLab (`iniciar_cuneilab.bat`), cargá **la misma fotografía** y pulsá **«Importar transcripción neuronal (.json)»**. Verificá el texto en la vista previa y elegí **«Usar signos en el editor»** para revisarlo. Se conserva la procedencia del OCR en el proyecto exportado.
+
+### Evaluación con referencias independientes
+
+Usá dos archivos JSONL **separados**, uno de referencia y otro de predicciones, con `{"id":"P123456","text":"𒀭𒆠"}` por fila. No entrenes ni elijas hiperparámetros sobre el conjunto de evaluación.
+
+```powershell
+py -3 scripts/evaluate_nabu.py --gold data/gold.jsonl --predicted data/predicted.jsonl --output data/ocr/evaluation.json
+```
+
+El reporte incluye tasa de errores por signo basada en **Levenshtein de glifos Unicode y marcadores de cara** y detalla IDs faltantes. **No es el TER basado en IDs del tokenizer del autor ni un puntaje de traducción.**
+
+**Estado de las pruebas:** interfaces, formatos, métricas y CLI probados sin pesos. No se ha ejecutado una inferencia real de NabuOCR ni un benchmark sobre fotografías con este lanzamiento: requiere instalar el modelo, sus pesos y ejecutar un conjunto de evaluación con ground truth.
 
 ## Capacidades actuales
 
@@ -16,7 +53,7 @@
 1. Instalá [Python 3](https://www.python.org/downloads/) si no lo tenés. El servidor no requiere `pip install`.
 2. Descomprimí el proyecto y ejecutá `iniciar_cuneilab.bat`.
 3. En el navegador abrí `http://127.0.0.1:8765`. Sin Python, `index.html` sirve para el editor y la importación de detecciones; la búsqueda de corpus necesita servidor.
-4. Cargá una fotografía en **La tablilla**. Para superponer detecciones, usá **Importar resultado OCR (.json)** y elegí el JSON de la *misma fotografía* (mismas dimensiones originales). Revisá cada caja y su `label` antes de aceptar. Toda lectura importada se conserva solo como sugerencia en las notas y queda marcada `?` hasta que la corrijas con **Editar** en el listado de regiones.
+4. Cargá una fotografía en **La tablilla**. Para superponer detecciones, usá **Importar resultado OCR (.json)** y elegí el JSON de la *misma fotografía* (mismas dimensiones originales). Revisá cada caja y su `label` antes de aceptar. La lectura importada, si no se proporciona explícitamente, queda en `?`.
 
 El botón **Aceptar detecciones visibles como regiones** no asigna lecturas automáticamente. Las clases del modelo, como `AN` o `CLASS_2`, no equivalen siempre a una pronunciación o interpretación inequívoca. Cambiar el umbral de confianza únicamente filtra predicciones, no mejora el modelo.
 
@@ -112,3 +149,7 @@ Las pruebas del adaptador simulan resultados de MMDetection sin afirmar que los 
 - [CDLI API](https://cdli.earth/docs/api), [ePSD2](https://oracc.museum.upenn.edu/epsd2/).
 
 Este repositorio no fija todavía una licencia de software. **El OCR detecta clases visuales; la transliteración exige resolver ambigüedad; la traducción al español exige modelos o filología adicionales.** Ninguna de esas fases debe hacerse pasar por las otras.
+
+### Atribución NabuOCR
+
+NabuOCR, Zack Williams (2025), licencia Apache-2.0; véase https://huggingface.co/boatbomber/NabuOCR. CuneiLab no redistribuye sus pesos.

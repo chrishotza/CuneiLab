@@ -5,3 +5,10 @@
 __pycache__/
 *.pyc
 .DS_Store
+
+# Pesos y resultados del OCR opcional
+*.safetensors
+*.pth
+*.pt
+/models/
+/data/ocr/

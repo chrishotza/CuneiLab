@@ -3,14 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CuneiLab — Taller de lectura cuneiforme v0.4</title>
+  <title>CuneiLab — Taller de lectura cuneiforme v0.5</title>
   <meta name="description" content="Espacio de trabajo para estudiar fotografías, signos y transliteraciones cuneiformes. Funciona sin conexión.">
   <link rel="stylesheet" href="styles.css">
   <script defer src="catalog.js"></script>
   <script defer src="engine.js"></script>
   <script defer src="vision.js"></script>
+  <script defer src="transcription.js"></script>
   <script defer src="app.js"></script>
   <script defer src="corpus-ui.js"></script>
+  <script defer src="transcription-ui.js"></script>
 </head>
 <body>
   <div class="shell">
@@ -25,7 +27,7 @@
 
     <main>
       <section class="intro">
-        <div><div class="eyebrow">EDICIÓN EXPERIMENTAL · v0.4</div><h1>Leer el pasado,<br><em>signo por signo.</em></h1><p>Explorá tablillas, anotá la escritura y analizá una transliteración en un solo espacio de trabajo.</p></div>
+        <div><div class="eyebrow">EDICIÓN EXPERIMENTAL · v0.5</div><h1>Leer el pasado,<br><em>signo por signo.</em></h1><p>Explorá tablillas, anotá la escritura y analizá una transliteración en un solo espacio de trabajo.</p></div>
         <div class="intro-aside"><div class="rune-pattern" aria-hidden="true">𒀭 𒈗 𒆠<br>𒂍 𒁾 𒀀</div><div class="metric"><strong id="signCount">1.118</strong><span>signos Unicode para explorar</span></div></div>
       </section>
 
@@ -45,9 +47,16 @@
               <div class="vision-actions"><button class="btn btn-secondary small" id="acceptVisibleDetections" type="button">Aceptar detecciones visibles como regiones sin lectura</button><button class="btn btn-ghost small" id="clearDetections" type="button">Quitar detecciones</button></div>
               <div class="vision-results" id="visionResults" aria-live="polite"></div>
             </section>
+            <section class="vision-import" aria-label="Lectura neuronal a Unicode">
+              <div class="list-heading"><strong>Lectura neuronal de signos Unicode · NabuOCR</strong><span class="pill">v0.5 opcional</span></div>
+              <p class="small-note">Ejecutá <code>scripts/run_nabu_ocr.py</code> sobre tu foto con el modelo NabuOCR instalado, después importá su JSON. Este motor produce <b>secuencias Unicode, no recuadros ni traducciones</b>. Requiere descargar el modelo y revisar los resultados.</p>
+              <div class="vision-actions"><label class="btn btn-secondary small" for="nabuImport">Importar transcripción neuronal (.json)</label><button class="btn btn-accent small" id="nabuApply" type="button" disabled>Usar signos en el editor</button></div>
+              <div id="nabuStatus" class="small-note" role="status" aria-live="polite">No hay ninguna transcripción neuronal importada.</div>
+              <pre id="nabuPreview" class="nabu-preview" hidden></pre>
+            </section>
             <div class="annotation-form" id="annotationForm" hidden><div class="annotation-heading"><strong>Nueva región marcada</strong><button class="icon-btn" id="cancelAnnotation" title="Cancelar">×</button></div><div class="annotation-fields"><label>Lectura propuesta<input id="annotationReading" placeholder="p. ej. lugal, AN, ?"></label><label>Nota / alternativa<input id="annotationNote" placeholder="p. ej. signo parcialmente erosionado"></label></div><button class="btn btn-accent small" id="saveAnnotation">Guardar región</button></div>
             <div class="list-heading"><strong>Regiones anotadas</strong><span class="count" id="annotationCount">0</span></div><div class="annotation-list" id="annotationList"><p class="muted short">Todavía no hay anotaciones.</p></div>
-            <div class="information">La aplicación no incluye pesos de IA. Podés generar detecciones con el script opcional de eBL/MMDetection o importar anotaciones COCO; la revisión de cada signo es obligatoria antes de interpretar el texto.</div>
+            <div class="information">La aplicación no incluye pesos de IA. NabuOCR predice glifos Unicode y eBL/MMDetection ofrece recuadros. Son módulos independientes; la revisión de cada signo es obligatoria antes de interpretar el texto.</div>
           </div>
         </section>
 
@@ -108,6 +117,7 @@
   <input type="file" id="imageInput" accept="image/png,image/jpeg,image/webp" hidden>
   <input type="file" id="projectFile" accept=".json,application/json" hidden>
   <input type="file" id="predictionInput" accept=".json,application/json" hidden>
+  <input type="file" id="nabuImport" accept=".json,application/json" hidden>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 </body>
 </html>

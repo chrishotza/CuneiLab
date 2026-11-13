@@ -1,0 +1,10 @@
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const t=require('../transcription.js');
+const d={format:'cuneilab-transcription',version:1,kind:'unicode-ocr',text:'@obverse\n𒀭𒆠',source:'NabuOCR',model:'boatbomber/NabuOCR',image:{width:800,height:900},image_filename:'test.png'};
+test('valid Unicode OCR and sign count',()=>{assert.equal(t.canonical(d).signs,2);});
+test('reject translations with no signs',()=>assert.throws(()=>t.canonical({...d,text:'The king came'})));
+test('reject images of other sizes',()=>assert.throws(()=>t.matchImage(t.canonical(d),801,900)));
+test('refuse invalid format',()=>assert.throws(()=>t.canonical({...d,format:'other'})));
+test('reject filename traversal',()=>assert.throws(()=>t.canonical({...d,image_filename:'../foo'})));
+test('proper codepoint count',()=>assert.equal(t.count('𒀭𒆠𒈗'),3));

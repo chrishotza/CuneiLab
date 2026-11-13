@@ -15,7 +15,7 @@
   }
   function fileStem() { return ($('projectTitle').value || 'cuneilab').trim().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9_-]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,70)||'cuneilab'; }
   function collect() {
-    return {format:'cuneilab-project',version:1,createdAt:new Date().toISOString(),title:$('projectTitle').value,language:$('languageSelect').value,transliteration:$('transliteration').value,glyphs:$('unicodeInput').value,annotations:state.annotations,vision:{source:state.visionSource,detections:state.predictions,image:{width:state.image.naturalWidth||0,height:state.image.naturalHeight||0}},filters:{contrast:Number($('contrast').value),brightness:Number($('brightness').value),grayscale:$('grayscale').checked},image:state.imageUrl||null};
+    return {format:'cuneilab-project',version:1,createdAt:new Date().toISOString(),title:$('projectTitle').value,language:$('languageSelect').value,transliteration:$('transliteration').value,glyphs:$('unicodeInput').value,annotations:state.annotations,vision:{source:state.visionSource,detections:state.predictions,image:{width:state.image.naturalWidth||0,height:state.image.naturalHeight||0}},ocrSource:{source:$('unicodeInput').dataset.ocrSource||'',model:$('unicodeInput').dataset.ocrModel||''},filters:{contrast:Number($('contrast').value),brightness:Number($('brightness').value),grayscale:$('grayscale').checked},image:state.imageUrl||null};
   }
   function persist() { try { const v=collect(); delete v.image;localStorage.setItem('cuneilab-v1',JSON.stringify(v)); }catch(e){ /* persistencia opcional */ } }
   function restore() { try { const d=JSON.parse(localStorage.getItem('cuneilab-v1')||'null'); if(d?.format==='cuneilab-project') applyProject(d,false); }catch(e){} }
@@ -26,6 +26,8 @@
     $('languageSelect').value=d.language==='akk'?'akk':'sux';
     $('transliteration').value=String(d.transliteration||'').slice(0,250000);
     $('unicodeInput').value=String(d.glyphs||'').slice(0,250000);
+    $('unicodeInput').dataset.ocrSource=String(d.ocrSource?.source||'').slice(0,180);
+    $('unicodeInput').dataset.ocrModel=String(d.ocrSource?.model||'').slice(0,180);
     const validRect=r=>r && [r.x,r.y,r.w,r.h].every(n=>typeof n==='number' && Number.isFinite(n) && n>=0 && n<=1);
     state.predictions=[];state.visionSource='';
     state.annotations=Array.isArray(d.annotations)?d.annotations.filter(validRect).slice(0,1000).map(r=>({x:r.x,y:r.y,w:r.w,h:r.h,reading:String(r.reading||'').slice(0,100),note:String(r.note||'').slice(0,500)})):[];
@@ -41,7 +43,7 @@
     analyze();persist();if(showMessage) toast('Proyecto importado.');
   }
   function clearPhoto(save=true) {
-    state.imageUrl='';state.image=new Image();state.draftRect=null;state.predictions=[];state.visionSource='';renderDetections();
+    state.imageUrl='';state.image=new Image();delete $('imageStage').dataset.filename;delete $('imageStage').dataset.imageWidth;delete $('imageStage').dataset.imageHeight;state.draftRect=null;state.predictions=[];state.visionSource='';renderDetections();
     $('imageEmpty').hidden=false;$('tabletCanvas').hidden=true;$('annotationForm').hidden=true;
     if(save)persist();
   }
@@ -49,7 +51,7 @@
     const img=new Image();
     img.onload=()=>{
       if(img.naturalWidth<1 || img.naturalHeight<1){toast('Imagen vacía.');return;}
-      state.image=img;state.imageUrl=src;const cvs=$('tabletCanvas');const scale=Math.min(1,1600/Math.max(img.naturalWidth,img.naturalHeight));
+      state.image=img;state.imageUrl=src;$('imageStage').dataset.imageWidth=String(img.naturalWidth);$('imageStage').dataset.imageHeight=String(img.naturalHeight);const cvs=$('tabletCanvas');const scale=Math.min(1,1600/Math.max(img.naturalWidth,img.naturalHeight));
       cvs.width=Math.max(1,Math.round(img.naturalWidth*scale));cvs.height=Math.max(1,Math.round(img.naturalHeight*scale));
       $('imageEmpty').hidden=true;cvs.hidden=false;renderImage();if(done)done();persist();
     };
@@ -151,7 +153,7 @@
     const file=ev.target.files?.[0];ev.target.value='';if(!file)return;
     if(!['image/jpeg','image/png','image/webp'].includes(file.type))return toast('Usá JPG, PNG o WebP.');
     if(file.size>12*1024*1024)return toast('La fotografía debe ocupar como máximo 12 MB.');
-    const reader=new FileReader();reader.onload=()=>{state.annotations=[];state.predictions=[];state.visionSource='';state.imageFilename=file.name;loadImageUrl(reader.result,renderDetections);renderAnnotations();};reader.onerror=()=>toast('No se pudo leer la fotografía.');reader.readAsDataURL(file);
+    const reader=new FileReader();reader.onload=()=>{state.annotations=[];state.predictions=[];state.visionSource='';state.imageFilename=file.name;$('imageStage').dataset.filename=file.name;loadImageUrl(reader.result,renderDetections);renderAnnotations();};reader.onerror=()=>toast('No se pudo leer la fotografía.');reader.readAsDataURL(file);
   });
   $('clearImage').addEventListener('click',()=>{clearPhoto();state.annotations=[];renderAnnotations();toast('Imagen eliminada del proyecto actual.');});
   ['contrast','brightness','grayscale'].forEach(id=>$(id).addEventListener('input',()=>{updateFilterLabels();renderImage();persist();}));

@@ -38,3 +38,5 @@ footer{padding:32px 0 45px;display:flex;justify-content:space-between;gap:10px;c
 .vision-detection{display:flex;align-items:center;gap:12px;border-top:1px solid #41483b;padding:9px 2px;font-size:11px}
 .vision-detection .meta{flex:1;min-width:0}.vision-detection strong{display:block;color:#e9cc9c;overflow-wrap:anywhere}.vision-detection small{display:block;color:var(--muted);margin-top:3px}.vision-detection button{white-space:nowrap}
 .vision-hint{font-size:11px;color:#c1c7b4;margin-top:8px}
+
+.nabu-preview{max-height:190px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-family:serif;font-size:1.25rem;background:#181f18;border:1px solid #57604b;border-radius:10px;padding:12px;color:#f4d7a3}
