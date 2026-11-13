@@ -121,5 +121,41 @@ class CorpusTests(unittest.TestCase):
         finally:
             con.close()
 
+    def test_local_http_rejects_host_rebinding_and_private_head_paths(self):
+        httpd = ThreadingHTTPServer(('127.0.0.1', 0), make_handler(self.db))
+        thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(httpd.server_close)
+        self.addCleanup(httpd.shutdown)
+        connection = http.client.HTTPConnection('127.0.0.1', httpd.server_port, timeout=3)
+        try:
+            # A correct local authority still serves the UI and read-only API.
+            connection.request('GET', '/api/status')
+            response = connection.getresponse()
+            self.assertEqual(response.status, 200)
+            response.read()
+            connection.request('HEAD', '/index.html')
+            response = connection.getresponse()
+            self.assertEqual(response.status, 200)
+            response.read()
+            # HEAD cannot bypass the explicit public-asset allowlist.
+            for path in ('/server.py', '/corpus.py', '/data/sumtablets.sqlite3'):
+                with self.subTest(path=path):
+                    connection.request('HEAD', path)
+                    response = connection.getresponse()
+                    self.assertEqual(response.status, 404)
+                    response.read()
+            # A browser at a hostile origin must not reach local corpus data
+            # just because it resolves its hostname to the loopback address.
+            for method, path in (('GET', '/api/status'), ('GET', '/index.html'),
+                                 ('HEAD', '/index.html')):
+                with self.subTest(method=method, path=path):
+                    connection.request(method, path, headers={'Host': 'attacker.invalid'})
+                    response = connection.getresponse()
+                    self.assertEqual(response.status, 403)
+                    response.read()
+        finally:
+            connection.close()
+
 
 if __name__=='__main__': unittest.main()
