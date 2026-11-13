@@ -22,7 +22,7 @@ Descargá **manualmente** `CuneiMLv1.2.json` desde [Zenodo](https://zenodo.org/r
 py -3 scripts/prepare_cuneiml_faces.py --mode review --metadata data/cuneiml/CuneiMLv1.2.json --photos data/cuneiml/photos --output-dir data/cuneiml/review01 --split all --max-tablets 50 --verify-md5
 ```
 
-Se generan `review01/images/P......_crop.png`, `faces_template.jsonl` y un informe `dataset.json` **sin `gold.jsonl`**. Abrí cada recorte y editá solo el valor `face` de `null` a `"obverse"`, `"reverse"`, `"left"`, etc., cuando la orientación esté confirmada. **No inventes la cara**: si no sabés cuál es, conservá `null`. No alteres los hashes.
+Se generan `review01/images/P......_crop.png`, **`review01/revisar_caras.html`**, `faces_template.jsonl` y un informe `dataset.json` **sin `gold.jsonl`**. Abrí `revisar_caras.html` en Chrome/Edge; elegí la cara visualmente y pulsá **«Descargar mapa revisado»**. El navegador guardará `faces_revisadas.jsonl` en Descargas. **No inventes la cara**: si no sabés cuál es, conservá «Sin identificar». La página funciona offline y no transmite imágenes. También podés editar el JSONL a mano: cambiá solo `face`, no los hashes.
 
 Ejemplo de una línea *antes* de revisar (los SHA reales los crea el programa):
 
@@ -33,7 +33,7 @@ Ejemplo de una línea *antes* de revisar (los SHA reales los crea el programa):
 ### Paso 2 — producir solo pares imagen/cara verificados
 
 ```powershell
-py -3 scripts/prepare_cuneiml_faces.py --mode prepare --metadata data/cuneiml/CuneiMLv1.2.json --photos data/cuneiml/photos --face-map data/cuneiml/review01/faces_template.jsonl --output-dir data/cuneiml/benchmark01 --split all --max-tablets 50 --verify-md5
+py -3 scripts/prepare_cuneiml_faces.py --mode prepare --metadata data/cuneiml/CuneiMLv1.2.json --photos data/cuneiml/photos --face-map "%USERPROFILE%\Downloads\faces_revisadas.jsonl" --output-dir data/cuneiml/benchmark01 --split all --max-tablets 50 --verify-md5
 py -3 scripts/batch_nabu.py --manifest data/cuneiml/benchmark01/manifest.jsonl --check
 ```
 

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import html
 import io
 import json
 import re
@@ -90,6 +91,56 @@ def crop_as_png(photo: Path, bbox: tuple[int, int, int, int]) -> bytes:
     except (OSError, ValueError, UnidentifiedImageError) as exc:
         raise ValueError(f'Imagen o recorte inválido: {exc}') from exc
 
+
+
+def review_page(entries: list[dict]) -> str:
+    """Standalone HTML tool to label local crops without editing JSON by hand.
+
+    Images are relative files and never sent to any external server.
+    """
+    safe_rows = json.dumps(entries, ensure_ascii=False, separators=(',', ':'))
+    safe_rows = safe_rows.replace('<', '\\u003c').replace('>', '\\u003e').replace('&', '\\u0026')
+    return """<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CuneiLab — revisión de caras</title>
+<style>
+:root{color-scheme:dark}body{background:#111b27;color:#f3f3ee;font-family:system-ui,sans-serif;margin:0}
+header{position:sticky;top:0;background:#111b27ed;padding:14px 22px;border-bottom:1px solid #455263;z-index:3}
+h1{font-size:1.2rem;margin:0 0 6px}p{margin:6px 0;color:#b6c7cf;line-height:1.45;font-size:.92rem}
+.controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:10px}button,select{background:#213649;color:white;border:1px solid #638295;border-radius:8px;padding:8px;font-size:.9rem}button{cursor:pointer;background:#285870;font-weight:600}
+main{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:16px;padding:20px}
+article{border:1px solid #40536a;background:#172734;border-radius:10px;overflow:hidden;padding:12px}
+article img{display:block;width:100%;height:240px;object-fit:contain;background:#08131e;border:1px solid #334b5e;border-radius:5px}
+article h2{font-size:1rem;margin:10px 0}article label{display:block;color:#c7dae6;margin-bottom:5px;font-size:.85rem}
+article select{width:100%}article.done{border-color:#3f9d74}small{display:block;color:#9cb1bc;margin-top:8px;overflow-wrap:anywhere}
+</style></head><body>
+<header><h1>CuneiLab · revisión visual de caras</h1>
+<p>Elegí la cara visible del recorte SOLO si podés identificarla. No adivines. Esta página funciona sin conexión; no transmite imágenes.</p>
+<div class="controls"><span id="count" aria-live="polite"></span><button id="save" type="button">Descargar mapa revisado (.jsonl)</button></div>
+</header><main id="items"></main><script>
+const entries=__ROWS__;
+const faces=[['','Sin identificar'],['obverse','Anverso'],['reverse','Reverso'],['left','Lateral izquierdo'],['right','Lateral derecho'],['top','Superior'],['bottom','Inferior']];
+const root=document.getElementById('items');const status=document.getElementById('count');
+function update(){status.textContent=entries.filter(e=>e.face).length+' / '+entries.length+' caras identificadas';}
+for(const entry of entries){
+ const article=document.createElement('article');article.className=entry.face?'done':'';
+ const title=document.createElement('h2');title.textContent=entry.id;article.append(title);
+ const img=document.createElement('img');img.src=entry.image;img.alt='Recorte de '+entry.id;img.loading='lazy';article.append(img);
+ const label=document.createElement('label');label.textContent='Cara que muestra el recorte';article.append(label);
+ const select=document.createElement('select');select.setAttribute('aria-label','Cara de '+entry.id);
+ for(const [code,name] of faces){const opt=document.createElement('option');opt.value=code;opt.textContent=name;select.append(opt);}
+ select.value=entry.face||'';select.addEventListener('change',()=>{entry.face=select.value||null;article.className=entry.face?'done':'';update();});article.append(select);
+ const detail=document.createElement('small');detail.textContent='Recorte: '+entry.crop_box.join(', ')+' · SHA256 '+entry.crop_sha256.slice(0,12)+'…';article.append(detail);
+ root.append(article);
+}
+update();
+document.getElementById('save').addEventListener('click',()=>{
+ const lines=entries.map(e=>JSON.stringify(e)).join('\\n')+'\\n';
+ const url=URL.createObjectURL(new Blob([lines],{type:'application/x-ndjson;charset=utf-8'}));
+ const a=document.createElement('a');a.href=url;a.download='faces_revisadas.jsonl';a.click();
+ setTimeout(()=>URL.revokeObjectURL(url),2000);
+});
+</script></body></html>""".replace('__ROWS__', safe_rows)
 
 def load_face_map(path: Path) -> dict[str, dict]:
     """Human-edited JSONL from --review. Every accepted face requires crop hash."""
@@ -241,11 +292,12 @@ def make_dataset(records, photos: Path, output: Path, *, mode: str = 'review',
                               'source_url': SOURCE_URL})
         if mode == 'review':
             atomic_jsonl(stage / 'faces_template.jsonl', review)
+            (stage / 'revisar_caras.html').write_text(review_page(review), encoding='utf-8')
             (stage / 'INSTRUCCIONES.txt').write_text(
                 'Abrí cada recorte en images/, reconocé si se ve el anverso, reverso u otra cara.\n'
-                'Editá faces_template.jsonl: cambiale face:null por la cara REAL (obverse/reverse/etc).\n'
+                'Abrí revisar_caras.html, elegí las caras que realmente reconozcas y descargá faces_revisadas.jsonl.\n'
                 'No adivines: dejá null si no sabés la cara. NO edites los hashes.\n'
-                'Luego corré --mode prepare --face-map <archivo editado>.\n', encoding='utf-8')
+                'Luego corré --mode prepare --face-map <faces_revisadas.jsonl> (en tu carpeta Descargas).\n', encoding='utf-8')
         else:
             atomic_jsonl(stage / 'manifest.jsonl', manifest)
             atomic_jsonl(stage / 'gold.jsonl', gold)

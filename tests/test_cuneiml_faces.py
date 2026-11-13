@@ -49,6 +49,10 @@ class FaceAlignmentTests(unittest.TestCase):
             self.assertEqual(crop.size, (18, 13))
         self.assertEqual(load_face_map(path)['P131837']['face'], 'reverse')
         self.assertFalse((self.root / 'review' / 'gold.jsonl').exists())
+        page = (self.root / 'review' / 'revisar_caras.html').read_text(encoding='utf-8')
+        self.assertIn('P131837_crop.png', page)
+        self.assertIn('faces_revisadas.jsonl', page)
+        self.assertIn('aria-label', page)
 
     def test_prepare_only_relevant_face_and_batch_compatible(self):
         path = self.reviewed()
