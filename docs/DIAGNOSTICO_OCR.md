@@ -17,3 +17,16 @@ Las dos entradas son JSONL con objetos `{"id":"P123456-reverse","text":"𒀭𒆠
 **Alcance:** las sustituciones se infieren mediante una alineación de Levenshtein determinista, pero una secuencia con signos repetidos puede admitir varias alineaciones igualmente óptimas. Estas categorías son **diagnósticas**, no un resultado filológico único. El análisis detallado limita cada secuencia a 1.500 tokens para evitar uso descontrolado de memoria. Para recortes de una sola cara, pasá `--cropped-faces`, que ignora las etiquetas `@obverse` y `@reverse`.
 
 El programa **no** descarga modelos ni produce predicciones por sí mismo; hasta ejecutar NabuOCR sobre imágenes reales con referencias independientes no tenemos cifras científicas de precisión.
+
+## Informe visual offline (nuevo)
+
+Después de generar el JSON de diagnóstico, creá una página HTML autónoma:
+
+```powershell
+py -3 scripts/ocr_error_analysis.py --gold data/cuneiml/benchmark01/gold.jsonl --predicted data/ocr/batch/predictions.jsonl --cropped-faces --output data/ocr/batch/errores_detallados.json
+py -3 scripts/render_ocr_report.py --input data/ocr/batch/errores_detallados.json --output data/ocr/batch/diagnostico.html
+```
+
+Abrí `data/ocr/batch/diagnostico.html` con Chrome o Edge. Muestra cobertura, tasas de error, sustituciones frecuentes, signos omitidos o insertados y las tablillas con más errores. **No usa JavaScript, no carga datos externos y no envía fotografías**; se puede imprimir o conservar con la evaluación.
+
+Un resultado de este informe sigue siendo exploratorio si no comprobaste la independencia del conjunto de prueba con respecto al entrenamiento de NabuOCR. Los errores de alineación por signos repetidos pueden ser ambiguos, y el informe no es una traducción.
